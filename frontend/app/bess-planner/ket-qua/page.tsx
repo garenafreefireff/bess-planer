@@ -1,5 +1,5 @@
-import { BessPlannerResultPage } from "@/features/bess-planner/components/bess-planner-result-page";
+import { redirect } from "next/navigation";
 
 export default function BessPlannerResultRoute() {
-  return <BessPlannerResultPage />;
+  redirect("/customer-portal/du-an-cua-toi/ket-qua");
 }

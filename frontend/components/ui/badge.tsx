@@ -1,8 +1,8 @@
-import * as React from "react";
+﻿import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
-const badgeVariants = cva("inline-flex items-center rounded-full px-3 py-1 text-xs font-extrabold", {
+const badgeVariants = cva("inline-flex items-center rounded-full px-3 py-1 text-xs font-bold", {
   variants: {
     variant: {
       blue: "bg-blue-50 text-brand-blue",

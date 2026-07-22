@@ -1,4 +1,4 @@
-import Image from "next/image";
+﻿import Image from "next/image";
 import { buttonVariants } from "@/components/ui/button";
 import { heroMetrics, heroPrimaryIcon, heroSecondaryIcon, trustBadges } from "../data/landing-content";
 import { cn } from "@/lib/utils";
@@ -8,39 +8,40 @@ export function HeroSection() {
   const SecondaryIcon = heroSecondaryIcon;
 
   return (
-    <section className="site-container grid min-h-[520px] grid-cols-[42%_58%] items-center gap-8 py-10 max-xl:grid-cols-[44%_56%] max-lg:grid-cols-1 max-lg:pt-8">
-      <div className="min-w-0">
-        <div className="mb-5 w-fit rounded-full bg-green-50 px-4 py-1.5 text-xs font-black uppercase text-green-700">
+    <section className="site-container grid min-h-[560px] grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] items-center gap-10 py-12 max-xl:min-h-0 max-xl:gap-7 max-lg:grid-cols-1 max-lg:py-9">
+      <div className="max-w-[700px]">
+        <div className="mb-5 w-fit rounded-full border border-green-100 bg-green-50 px-4 py-2 text-xs font-bold uppercase tracking-[0.04em] text-green-700">
           Nền tảng phân tích & lập kế hoạch BESS toàn diện
         </div>
-        <h1 className="max-w-[620px] text-[52px] font-bold leading-[1.08] tracking-normal text-brand-navy max-xl:text-[48px] max-sm:text-[36px]">
+        <h1 className="max-w-[720px] text-[clamp(42px,4.2vw,64px)] font-bold leading-[1.02] tracking-[-0.025em] text-brand-navy">
           Giải pháp toàn diện
-          <span className="mt-1 block font-bold text-brand-green">phân tích & lập kế hoạch BESS cho doanh nghiệp</span>
+          <span className="mt-2 block font-semibold text-brand-green">phân tích & lập kế hoạch BESS cho doanh nghiệp</span>
         </h1>
-        <p className="mt-5 max-w-[540px] text-base font-medium leading-[1.55] text-[#5D6D86]">
-          EnergyInsight giúp doanh nghiệp đánh giá nhanh tiềm năng, tính toán chính xác và lập kế hoạch đầu tư BESS tối ưu - dữ liệu tin cậy,
-          quyết định vững chắc.
+        <p className="mt-5 max-w-[650px] text-[15px] font-medium leading-7 text-brand-muted max-sm:text-sm">
+          EnergyInsight giúp doanh nghiệp đánh giá tiềm năng, lựa chọn quy mô và xây dựng phương án đầu tư BESS dựa trên dữ liệu phụ tải, biểu giá điện và các kịch bản vận hành thực tế.
         </p>
-        <div className="mt-6 grid max-w-[590px] grid-cols-[minmax(220px,275px)_minmax(260px,300px)] gap-4 max-sm:grid-cols-1">
-          <a className={buttonVariants({ className: "h-[50px] justify-start rounded-lg bg-brand-blue px-6 text-[15px] text-white hover:bg-brand-blue/90" })} href="/quick-sizing">
+        <div className="mt-7 grid max-w-[640px] grid-cols-2 gap-4 max-sm:grid-cols-1">
+          <a className={buttonVariants({ size: "lg", className: "h-14 justify-start rounded-lg bg-brand-blue px-5 text-white shadow-[0_12px_30px_rgba(7,91,234,0.22)] hover:bg-brand-blue/90" })} href="/quick-sizing">
             <PrimaryIcon size={20} />
             <span className="grid gap-0.5 text-left">
               Dùng Quick Sizing
               <small className="text-xs font-semibold opacity-90">Ước tính nhanh, kết quả tức thì</small>
             </span>
           </a>
-          <a className={buttonVariants({ variant: "secondary", className: "h-[50px] justify-start rounded-lg px-6 text-[15px]" })} href="/customer-portal">
+          <a className={buttonVariants({ variant: "secondary", size: "lg", className: "h-14 justify-start rounded-lg border-brand-blue/30 bg-white px-5 shadow-sm" })} href="/bess-planner">
             <SecondaryIcon size={20} />
             <span className="grid gap-0.5 text-left">
-              Phân tích chuyên sâu
-              <small className="text-xs font-semibold opacity-90">Yêu cầu đăng nhập BESS Planner</small>
+              Mở BESS Planner
+              <small className="text-xs font-semibold opacity-90">Phân tích chuyên sâu, lập kế hoạch đầu tư</small>
             </span>
           </a>
         </div>
-        <div className="mt-7 grid max-w-[620px] grid-cols-4 gap-4 max-xl:grid-cols-2 max-sm:grid-cols-1">
+        <div className="mt-8 grid grid-cols-2 gap-x-7 gap-y-4 border-t border-brand-line pt-6 max-sm:grid-cols-1">
           {trustBadges.map(({ detail, icon: Icon, title }) => (
             <div className="flex min-w-0 items-center gap-3" key={title}>
-              <Icon className="shrink-0 text-brand-green" size={20} />
+              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-green-50 text-brand-green">
+                <Icon size={18} />
+              </span>
               <span className="grid gap-0.5">
                 <strong className="text-[13px] text-brand-navy">{title}</strong>
                 <small className="text-xs leading-snug text-brand-muted">{detail}</small>
@@ -49,18 +50,20 @@ export function HeroSection() {
           ))}
         </div>
       </div>
-      <div className="relative min-h-[500px] overflow-hidden rounded-bl-[70px] max-lg:rounded-xl">
-        <div className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-r from-white/75 via-white/10 to-white/0" />
-        <Image className="object-cover object-center saturate-[1.04]" src="/bess-hero.png" alt="" fill priority sizes="(max-width: 1024px) 100vw, 58vw" />
-        <div className="absolute right-8 top-14 z-[2] grid gap-3 max-sm:right-3 max-sm:scale-[0.86] max-sm:origin-right">
+      <div className="relative min-h-[500px] overflow-hidden rounded-[28px] border border-white/80 bg-slate-100 shadow-[0_24px_70px_rgba(12,43,91,0.14)] max-xl:min-h-[450px] max-lg:min-h-[420px] max-sm:min-h-[360px]">
+        <div className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-r from-white/35 via-transparent to-brand-navy/5" />
+        <Image className="object-cover object-center saturate-[1.04]" src="/bess-hero.png" alt="Nhà máy tích hợp điện mặt trời và hệ thống lưu trữ năng lượng BESS" fill priority sizes="(max-width: 1024px) 100vw, 55vw" />
+        <div className="absolute right-6 top-1/2 z-[2] grid -translate-y-1/2 gap-3 max-sm:right-3 max-sm:scale-[0.84] max-sm:origin-right">
           {heroMetrics.map(({ icon: Icon, title, value, tone }) => (
             <div
-              className="grid min-h-[82px] w-[245px] grid-cols-[54px_1fr] items-center gap-x-3 rounded-xl border border-slate-200 bg-white/95 px-4 py-3 shadow-soft"
+              className="grid min-h-[88px] w-[238px] grid-cols-[50px_1fr] items-center gap-x-3 rounded-xl border border-white/90 bg-white/95 px-4 py-3.5 shadow-[0_12px_34px_rgba(13,45,89,0.14)] backdrop-blur"
               key={title}
             >
-              <Icon className={cn("row-span-2", tone === "blue" ? "text-brand-blue" : "text-brand-green")} size={42} />
-              <span className="text-xs font-extrabold text-brand-navy">{title}</span>
-              <strong className={cn("leading-tight", tone === "blue" ? "text-base text-brand-navy" : "text-[22px] text-brand-green")}>{value}</strong>
+              <span className={cn("row-span-2 grid size-11 place-items-center rounded-xl", tone === "blue" ? "bg-blue-50 text-brand-blue" : "bg-green-50 text-brand-green")}>
+                <Icon size={26} />
+              </span>
+              <span className="text-xs font-bold text-brand-muted">{title}</span>
+              <strong className={cn("leading-tight", tone === "blue" ? "text-[15px] text-brand-navy" : "text-[18px] text-brand-green")}>{value}</strong>
             </div>
           ))}
         </div>

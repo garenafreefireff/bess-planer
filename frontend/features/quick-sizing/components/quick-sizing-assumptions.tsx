@@ -1,4 +1,4 @@
-import { Info } from "lucide-react";
+﻿import { Info } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { assumptions, tariffRows } from "../data/quick-sizing-content";
 
@@ -6,8 +6,8 @@ export function AssumptionsPanel() {
   return (
     <Card className="bg-white p-5 shadow-panel">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-xl font-extrabold text-brand-navy">Giả định Quick Sizing</h2>
-        <span className="rounded-full bg-green-50 px-4 py-1.5 text-sm font-extrabold text-brand-green">Mặc định</span>
+        <h2 className="text-xl font-bold text-brand-navy">Giả định Quick Sizing</h2>
+        <span className="rounded-full bg-green-50 px-4 py-1.5 text-sm font-bold text-brand-green">Mặc định</span>
       </div>
 
       <div className="divide-y divide-brand-line">
@@ -21,7 +21,7 @@ export function AssumptionsPanel() {
       </div>
 
       <div className="mt-4">
-        <h3 className="mb-2 text-sm font-extrabold text-brand-navy">Giá điện mẫu (VNĐ/kWh)</h3>
+        <h3 className="mb-2 text-sm font-bold text-brand-navy">Giá điện mẫu (VNĐ/kWh)</h3>
         <div className="rounded-lg bg-green-50/60 px-5 py-1.5">
           {tariffRows.map((row) => (
             <div className="flex h-7 items-center justify-between text-sm font-semibold text-brand-navy" key={row.label}>

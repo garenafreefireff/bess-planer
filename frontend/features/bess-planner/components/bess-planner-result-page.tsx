@@ -1,3 +1,5 @@
+﻿"use client";
+
 import {
   ChevronDown,
   FileDown,
@@ -5,12 +7,22 @@ import {
   Save,
   Share2
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { AppHeader } from "@/components/layout/app-header";
 import { Card } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-const tabs = ["Tổng quan", "Khuyến nghị", "Planning chi tiết", "So sánh chế độ", "Sizing theo tháng", "Dữ liệu đầu vào"];
+const tabs = ["Tổng quan", "Khuyến nghị", "Planning chi tiết", "So sánh chế độ", "Sizing theo tháng", "Dữ liệu đầu vào"] as const;
+type ResultTab = (typeof tabs)[number];
+
+type ProjectSnapshot = {
+  project?: { name?: string; location?: string; industry?: string; voltageLevel?: string; timezone?: string };
+  loadFile?: { name?: string; rowCount?: number | null; status?: string; sizeLabel?: string } | null;
+  pvFile?: { name?: string; rowCount?: number | null; status?: string; sizeLabel?: string } | null;
+  config?: { objective?: string; analysisYears?: number; energyKwh?: number; powerKw?: number; optimizePeak?: boolean; optimizeTou?: boolean };
+  createdAt?: number;
+};
 
 const recommendationRows = [
   ["250", "88", "439", "1,13", "3,9", "440", true],
@@ -23,10 +35,10 @@ const recommendationRows = [
 
 const kpis = [
   ["Đỉnh tải site", "597 kW", "grid ×1", "blue"],
-  ["SLSM chọn", "500/175", "kWh / kW", "green"],
+  ["Cấu hình khuyến nghị", "500/175", "kWh / kW", "green"],
   ["Tiết kiệm/năm", "664 tr", "kịch bản cơ sở", "blue"],
   ["NPV 10 năm", "0,83 tỷ", "payback 5,3 năm", "green"],
-  ["P_max hợp đồng", "410 kW", "đỉnh oracle +5%", "orange"]
+  ["P_max hợp đồng", "410 kW", "đỉnh tham chiếu +5%", "orange"]
 ];
 
 const scenarioRows = [
@@ -55,82 +67,124 @@ const monthlyRows = [
   ["block-4", "31", "500", "175", "415", "58", ""]
 ];
 
-export function BessPlannerResultPage() {
+export function BessPlannerResultPage({ embedded = false }: { embedded?: boolean } = {}) {
+  const [activeTab, setActiveTab] = useState<ResultTab>("Khuyến nghị");
+  const [snapshot, setSnapshot] = useState<ProjectSnapshot | null>(null);
+  const [actionMessage, setActionMessage] = useState("");
+
+  useEffect(() => {
+    const raw = window.localStorage.getItem("energyinsight.bessPlanner.lastProject.v1");
+    if (!raw) return;
+    try {
+      setSnapshot(JSON.parse(raw) as ProjectSnapshot);
+    } catch {
+      window.localStorage.removeItem("energyinsight.bessPlanner.lastProject.v1");
+    }
+  }, []);
+
+  const runDemoAction = (message: string) => {
+    setActionMessage(message);
+    window.setTimeout(() => setActionMessage(""), 1800);
+  };
+
+  const saveScenario = () => {
+    window.localStorage.setItem("energyinsight.bessPlanner.savedScenario.v1", JSON.stringify({ snapshot, savedAt: Date.now() }));
+    runDemoAction("Đã lưu kịch bản trên trình duyệt");
+  };
+
+  const shareResult = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      runDemoAction("Đã sao chép đường dẫn kết quả");
+    } catch {
+      runDemoAction("Không thể sao chép tự động; hãy sao chép URL trên thanh địa chỉ");
+    }
+  };
+
+  const content = (
+    <main className={embedded ? "w-full pb-12 pt-7" : "mx-auto w-[min(1440px,calc(100%_-_96px))] pb-12 pt-3 max-xl:w-[min(1180px,calc(100%_-_40px))]"}>
+      <Breadcrumb projectName={snapshot?.project?.name} />
+
+      <section className="mt-3 flex items-start justify-between gap-6 max-lg:flex-col">
+        <div>
+          <div className="flex items-center gap-4">
+            <h1 className="text-[21px] font-bold leading-tight text-brand-navy">Kết quả phân tích</h1>
+            <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-bold text-brand-green">Hoàn tất</span>
+          </div>
+          <p className="mt-1.5 text-sm font-semibold text-brand-muted">{snapshot?.createdAt ? `Tạo lúc: ${new Date(snapshot.createdAt).toLocaleString("vi-VN")}` : "Dữ liệu minh họa frontend"}</p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex h-9 items-center rounded-md border border-brand-line bg-white pl-4 text-sm font-semibold text-brand-muted">
+            Thời hạn phân tích
+            <select className="ml-3 h-full min-w-[92px] appearance-none border-l border-brand-line bg-white px-4 font-bold text-brand-navy outline-none" defaultValue={`${snapshot?.config?.analysisYears ?? 10} năm`}>
+              <option>5 năm</option>
+              <option>10 năm</option>
+              <option>15 năm</option>
+            </select>
+          </label>
+          <button className={buttonVariants({ variant: "secondary", size: "sm", className: "border-brand-line text-brand-blue" })} onClick={() => window.print()} type="button">
+            <FileDown size={16} className="text-red-500" />
+            In / Lưu PDF
+          </button>
+          <button className={buttonVariants({ variant: "secondary", size: "sm", className: "border-brand-line text-brand-blue" })} onClick={saveScenario} type="button">
+            <Save size={16} />
+            Lưu kịch bản
+          </button>
+          <button className={buttonVariants({ variant: "secondary", size: "sm", className: "border-brand-line text-brand-blue" })} onClick={() => void shareResult()} type="button">
+            <Share2 size={16} />
+            Chia sẻ
+          </button>
+        </div>
+      </section>
+
+      {actionMessage ? <div className="mt-3 rounded-lg border border-green-100 bg-green-50 px-4 py-2 text-sm font-bold text-brand-green">{actionMessage}</div> : null}
+
+      <Tabs activeTab={activeTab} onChange={setActiveTab} />
+
+      {activeTab === "Tổng quan" ? <OverviewTab snapshot={snapshot} /> : null}
+      {activeTab === "Khuyến nghị" ? <section className="mt-2 grid grid-cols-2 gap-3 max-xl:grid-cols-1"><ParetoChart /><RecommendationCard /></section> : null}
+      {activeTab === "Planning chi tiết" ? <PlanningSection /> : null}
+      {activeTab === "So sánh chế độ" ? <ComparisonSection /> : null}
+      {activeTab === "Sizing theo tháng" ? <MonthlySizingSection /> : null}
+      {activeTab === "Dữ liệu đầu vào" ? <InputDataSection snapshot={snapshot} /> : null}
+    </main>
+  );
+
+  if (embedded) return content;
+
   return (
     <>
       <AppHeader activeItem="BESS Planner" variant="dashboard" />
-      <main className="mx-auto w-[min(1440px,calc(100%_-_96px))] pb-12 pt-3 max-xl:w-[min(1180px,calc(100%_-_40px))]">
-        <Breadcrumb />
-
-        <section className="mt-3 flex items-start justify-between gap-6 max-lg:flex-col">
-          <div>
-            <div className="flex items-center gap-4">
-              <h1 className="text-[21px] font-extrabold leading-tight text-brand-navy">Kết quả phân tích</h1>
-              <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-extrabold text-brand-green">Hoàn tất</span>
-            </div>
-            <p className="mt-1.5 text-sm font-semibold text-brand-muted">Cập nhật lần cuối: 15/07/2026 10:30</p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="flex h-9 items-center rounded-md border border-brand-line bg-white pl-4 text-sm font-semibold text-brand-muted">
-              Thời hạn phân tích
-              <select className="ml-3 h-full min-w-[92px] appearance-none border-l border-brand-line bg-white px-4 font-bold text-brand-navy outline-none" defaultValue="10 năm">
-                <option>10 năm</option>
-                <option>15 năm</option>
-              </select>
-            </label>
-            <button className={buttonVariants({ variant: "secondary", size: "sm", className: "border-brand-line text-brand-blue" })} type="button">
-              <FileDown size={16} className="text-red-500" />
-              Xuất PDF
-            </button>
-            <button className={buttonVariants({ variant: "secondary", size: "sm", className: "border-brand-line text-brand-blue" })} type="button">
-              <Save size={16} />
-              Lưu kịch bản
-            </button>
-            <button className={buttonVariants({ variant: "secondary", size: "sm", className: "border-brand-line text-brand-blue" })} type="button">
-              <Share2 size={16} />
-              Chia sẻ
-            </button>
-          </div>
-        </section>
-
-        <Tabs />
-
-        <section className="mt-2 grid grid-cols-2 gap-3 max-xl:grid-cols-1">
-          <ParetoChart />
-          <RecommendationCard />
-        </section>
-
-        <PlanningSection />
-        <ComparisonSection />
-        <MonthlySizingSection />
-      </main>
+      {content}
     </>
   );
 }
 
-function Breadcrumb() {
+function Breadcrumb({ projectName }: { projectName?: string }) {
   return (
     <div className="flex items-center gap-4 text-sm font-semibold text-brand-muted">
       <span>BESS Planner</span>
       <ChevronDown className="-rotate-90" size={14} />
-      <span>Nhà máy ABC - Bình Dương</span>
+      <span>{projectName || "Dự án demo"}</span>
       <ChevronDown className="-rotate-90" size={14} />
       <span className="font-bold text-brand-navy">Kết quả phân tích</span>
     </div>
   );
 }
 
-function Tabs() {
+function Tabs({ activeTab, onChange }: { activeTab: ResultTab; onChange: (tab: ResultTab) => void }) {
   return (
-    <div className="mt-2 flex border-b border-brand-line">
+    <div className="mt-3 flex overflow-x-auto border-b border-brand-line">
       {tabs.map((tab) => (
         <button
+          aria-current={activeTab === tab ? "page" : undefined}
           className={cn(
-            "relative h-8 min-w-[115px] px-3 text-sm font-semibold text-brand-muted",
-            tab === "Khuyến nghị" && "font-extrabold text-brand-blue after:absolute after:bottom-[-1px] after:left-0 after:h-[3px] after:w-full after:bg-brand-blue"
+            "relative h-10 min-w-[132px] whitespace-nowrap px-3 text-sm font-semibold text-brand-muted",
+            activeTab === tab && "font-bold text-brand-blue after:absolute after:bottom-[-1px] after:left-0 after:h-[3px] after:w-full after:bg-brand-blue"
           )}
           key={tab}
+          onClick={() => onChange(tab)}
           type="button"
         >
           {tab}
@@ -138,6 +192,57 @@ function Tabs() {
       ))}
     </div>
   );
+}
+
+function OverviewTab({ snapshot }: { snapshot: ProjectSnapshot | null }) {
+  const config = snapshot?.config;
+  const cards = [
+    ["Dự án", snapshot?.project?.name || "Dự án demo"],
+    ["Địa điểm", snapshot?.project?.location || "Chưa xác định"],
+    ["Sizing tham chiếu", `${config?.powerKw ?? 500} kW / ${config?.energyKwh ?? 1000} kWh`],
+    ["Thời hạn", `${config?.analysisYears ?? 10} năm`],
+    ["File phụ tải", snapshot?.loadFile?.name || "Dữ liệu minh họa"],
+    ["Mục tiêu", config?.objective || "Tối thiểu tổng chi phí vòng đời"]
+  ];
+
+  return (
+    <div className="mt-3 grid gap-3">
+      <Card className="rounded-xl bg-white p-4 shadow-none">
+        <h2 className="text-lg font-bold text-brand-navy">Tổng quan dự án</h2>
+        <div className="mt-4 grid grid-cols-3 gap-3 max-lg:grid-cols-2 max-sm:grid-cols-1">
+          {cards.map(([label, value]) => (
+            <div className="rounded-lg border border-brand-line bg-slate-50 p-3" key={label}>
+              <small className="block text-xs font-semibold text-brand-muted">{label}</small>
+              <strong className="mt-1 block text-sm font-bold text-brand-navy">{value}</strong>
+            </div>
+          ))}
+        </div>
+      </Card>
+      <section className="grid grid-cols-2 gap-3 max-xl:grid-cols-1"><ParetoChart /><RecommendationCard /></section>
+    </div>
+  );
+}
+
+function InputDataSection({ snapshot }: { snapshot: ProjectSnapshot | null }) {
+  if (!snapshot) {
+    return <Card className="mt-3 rounded-xl bg-white p-6 text-center shadow-none"><h2 className="text-lg font-bold text-brand-navy">Chưa có snapshot dự án</h2><p className="mt-2 text-sm font-medium text-brand-muted">Hãy tạo dự án qua wizard để xem lại dữ liệu đầu vào tại đây.</p></Card>;
+  }
+  const rows = [
+    ["Tên dự án", snapshot.project?.name || "—"],
+    ["Địa điểm", snapshot.project?.location || "—"],
+    ["Ngành", snapshot.project?.industry || "—"],
+    ["Cấp điện áp", snapshot.project?.voltageLevel || "—"],
+    ["Múi giờ", snapshot.project?.timezone || "—"],
+    ["File phụ tải", snapshot.loadFile?.name || "—"],
+    ["Số dòng phụ tải", snapshot.loadFile?.rowCount == null ? "Chưa xác định" : String(snapshot.loadFile.rowCount)],
+    ["Trạng thái phụ tải", snapshot.loadFile?.status || "—"],
+    ["File PV", snapshot.pvFile?.name || "Không sử dụng"],
+    ["Mục tiêu tối ưu", snapshot.config?.objective || "—"],
+    ["Sizing tham chiếu", `${snapshot.config?.powerKw ?? "—"} kW / ${snapshot.config?.energyKwh ?? "—"} kWh`],
+    ["Peak shaving", snapshot.config?.optimizePeak ? "Có" : "Không"],
+    ["TOU", snapshot.config?.optimizeTou ? "Có" : "Không"]
+  ];
+  return <Card className="mt-3 rounded-xl bg-white p-4 shadow-none"><h2 className="text-lg font-bold text-brand-navy">Dữ liệu đầu vào đã lưu</h2><div className="mt-4 grid grid-cols-2 gap-x-8 gap-y-2 max-md:grid-cols-1">{rows.map(([label, value]) => <div className="flex justify-between gap-4 border-b border-brand-line py-2 text-sm" key={label}><span className="font-medium text-brand-muted">{label}</span><strong className="text-right text-brand-navy">{value}</strong></div>)}</div><div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-xs font-medium leading-5 text-brand-muted">Dữ liệu này được đọc từ localStorage của frontend. File gốc không được lưu, chỉ lưu metadata và preview đã kiểm tra.</div></Card>;
 }
 
 function ParetoChart() {
@@ -151,7 +256,7 @@ function ParetoChart() {
 
   return (
     <Card className="h-[262px] bg-white p-4 shadow-none">
-      <h2 className="text-sm font-extrabold text-brand-blue">Mặt Pareto (Savings × ROI)</h2>
+      <h2 className="text-sm font-bold text-brand-blue">Mặt Pareto (Savings × ROI)</h2>
       <div className="mt-2 h-[220px]">
         <svg viewBox="0 0 680 215" className="h-full w-full overflow-visible">
           <g fontSize="11" fill="#4d5f82">
@@ -179,7 +284,7 @@ function ParetoChart() {
             <rect x="312" y="2" width="11" height="8" fill="#1e86f5" />
             <text x="328" y="10">Pareto</text>
             <rect x="387" y="2" width="11" height="8" fill="#ff5656" />
-            <text x="403" y="10">SLSM ★</text>
+            <text x="403" y="10">Khuyến nghị ★</text>
           </g>
           {points.map(([x, y, tone], index) =>
             tone === "star" ? (
@@ -197,15 +302,15 @@ function ParetoChart() {
 function RecommendationCard() {
   return (
     <Card className="h-[262px] overflow-hidden bg-white p-3 shadow-none">
-      <h2 className="text-[13px] font-extrabold text-brand-blue">Khuyến nghị</h2>
-      <div className="mt-1.5 space-y-0 text-[10.5px] font-semibold leading-[14px] text-brand-navy">
-        <p className="font-extrabold text-brand-blue">SLSM chọn: 500 kWh / 175 kW</p>
+      <h2 className="text-[13px] font-bold text-brand-blue">Khuyến nghị</h2>
+      <div className="mt-1.5 space-y-0 text-xs font-semibold leading-[14px] text-brand-navy">
+        <p className="font-bold text-brand-blue">Cấu hình khuyến nghị: 500 kWh / 175 kW</p>
         <p>Tiết kiệm: <strong>664 triệu/năm</strong> · NPV: <strong>0,83 tỷ</strong> · Payback: <strong>5,3 năm</strong></p>
-        <p><strong>P_max hợp đồng đề xuất:</strong> 410 kW <span className="text-brand-muted">(đỉnh oracle 387,1 kW + 5%)</span></p>
-        <p className="text-brand-muted">→ Sang tab Cài đặt, đặt E_cap/P_rated theo khuyến nghị rồi train policy.</p>
+        <p><strong>P_max hợp đồng đề xuất:</strong> 410 kW <span className="text-brand-muted">(đỉnh tham chiếu tối ưu 387,1 kW + 5%)</span></p>
+        <p className="text-brand-muted">→ Có thể dùng cấu hình này làm đầu vào cho mô phỏng vận hành chi tiết.</p>
       </div>
 
-      <table className="mt-1 w-full text-left text-[10px] font-semibold leading-[13px]">
+      <table className="mt-1 w-full text-left text-xs font-semibold leading-[13px]">
         <thead className="border-b border-brand-line text-brand-muted">
           <tr>
             {["E (kWh)", "P (kW)", "Tiết kiệm/năm (tr)", "NPV (tỷ)", "Payback (năm)", "P_max HD (kW)", "Pareto"].map((head) => (
@@ -222,7 +327,7 @@ function RecommendationCard() {
           ))}
         </tbody>
       </table>
-      <button className="mx-auto mt-0.5 flex items-center gap-1 text-[10.5px] font-extrabold text-brand-blue" type="button">
+      <button className="mx-auto mt-0.5 flex items-center gap-1 text-xs font-bold text-brand-muted opacity-60" disabled title="Cần dịch vụ phân tích để tải thêm phương án" type="button">
         Xem thêm 11 phương án
         <ChevronDown size={14} />
       </button>
@@ -235,12 +340,12 @@ function PlanningSection() {
     <Card className="mt-3 bg-white p-4 shadow-none">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 className="text-sm font-extrabold uppercase text-brand-blue">PLANNING+ — đầy đủ kịch bản (khuyến nghị dùng thay sweep cơ bản)</h2>
+          <h2 className="text-sm font-bold uppercase text-brand-blue">PHÂN TÍCH MỞ RỘNG (PLANNING+) — khảo sát cấu hình và kịch bản</h2>
           <div className="mt-3 flex items-center gap-3">
-            <LabeledSelect label="Dataset (phây)" value="real" width="140px" />
-            <button className={buttonVariants({ size: "sm", className: "bg-brand-blue text-white hover:bg-brand-blue/90" })} type="button">
+            <LabeledSelect label="Bộ dữ liệu" value="Dữ liệu thực tế" width="160px" />
+            <button className={buttonVariants({ size: "sm", className: "bg-slate-300 text-white" })} disabled title="Cần dịch vụ tối ưu để chạy phân tích mở rộng" type="button">
               <Play size={15} fill="currentColor" />
-              Chạy Planning+ (sweep + kịch bản + chi tiết top-3)
+              Chạy khảo sát cấu hình và kịch bản
             </button>
           </div>
         </div>
@@ -248,7 +353,7 @@ function PlanningSection() {
           {kpis.map(([label, value, sub, tone]) => (
             <div className="min-w-[118px] rounded-md border border-brand-line bg-white px-4 py-3" key={label}>
               <p className="text-xs font-bold text-brand-muted">{label}</p>
-              <strong className={cn("mt-1 block text-xl font-extrabold", tone === "green" ? "text-brand-green" : tone === "orange" ? "text-orange-500" : "text-brand-blue")}>{value}</strong>
+              <strong className={cn("mt-1 block text-xl font-bold", tone === "green" ? "text-brand-green" : tone === "orange" ? "text-orange-500" : "text-brand-blue")}>{value}</strong>
               <small className="font-semibold text-brand-muted">{sub}</small>
             </div>
           ))}
@@ -256,7 +361,7 @@ function PlanningSection() {
       </div>
 
       <div className="mt-4 rounded-md border border-brand-line p-3">
-        <p className="text-sm font-extrabold text-orange-500">
+        <p className="text-sm font-bold text-orange-500">
           Chi tiết 500 kWh / 175 kW — tiết kiệm 664 tr/năm
           <span className="ml-5 text-brand-green">tuổi thọ 15.3 năm (1.075 EFC/ngày)</span>
         </p>
@@ -268,15 +373,15 @@ function PlanningSection() {
             footer="Điểm hòa vốn CAPEX: 3,93 tỷ (≈ 6,46 tr/kWh)"
           />
           <div className="border-l border-brand-line pl-5 max-lg:border-l-0 max-lg:pl-0">
-            <h3 className="text-xs font-extrabold text-brand-navy">P_max rủi ro</h3>
-            <MetricLine label="Đỉnh oracle P50 / P95 / max" value="348 / 387 / 387 kW" />
+            <h3 className="text-xs font-bold text-brand-navy">P_max rủi ro</h3>
+            <MetricLine label="Đỉnh tham chiếu P50 / P95 / max" value="348 / 387 / 387 kW" />
             <MetricLine label="Xấu nhất (BESS báo trì – no-BESS)" value="502 kW" />
-            <button className={buttonVariants({ variant: "secondary", size: "sm", className: "mt-4 h-8 text-xs" })} type="button">Dùng sizing này (P_max = max tháng)</button>
+            <button className={buttonVariants({ variant: "secondary", size: "sm", className: "mt-4 h-8 text-xs opacity-60" })} disabled title="Cần lưu kịch bản qua dịch vụ dự án" type="button">Dùng sizing này (P_max = max tháng)</button>
           </div>
           <div className="border-l border-brand-line pl-5 max-lg:border-l-0 max-lg:pl-0">
-            <h3 className="text-xs font-extrabold text-brand-navy">P_max hợp đồng theo tháng</h3>
+            <h3 className="text-xs font-bold text-brand-navy">P_max hợp đồng theo tháng</h3>
             <div className="mt-3 grid grid-cols-3 text-center text-xs">
-              <span>No-BESS</span><span>Oracle</span><span>HD đề xuất</span>
+              <span>Không BESS</span><span>Tham chiếu</span><span>HĐ đề xuất</span>
               <strong>502</strong><strong>387</strong><strong>410</strong>
             </div>
           </div>
@@ -290,12 +395,12 @@ function PlanningSection() {
 function ComparisonSection() {
   return (
     <Card className="mt-3 bg-white p-4 shadow-none">
-      <h2 className="text-sm font-extrabold uppercase text-brand-blue">SO SÁNH 2 CHẾ ĐỘ BIỂU GIÁ — TOU-only vs TOU + Peak shaving</h2>
+      <h2 className="text-sm font-bold uppercase text-brand-blue">SO SÁNH 2 CHẾ ĐỘ BIỂU GIÁ — TOU-only vs TOU + Peak shaving</h2>
       <div className="mt-3 flex flex-wrap items-end gap-4">
-        <LabeledSelect label="Dataset (phây)" value="real" width="140px" />
+        <LabeledSelect label="Bộ dữ liệu" value="Dữ liệu thực tế" width="160px" />
         <LabeledInput label="E_cap (kWh)" value="500" />
         <LabeledInput label="P_rated (kW)" value="250" />
-        <button className={buttonVariants({ variant: "secondary", size: "sm", className: "h-9" })} type="button">
+        <button className={buttonVariants({ variant: "secondary", size: "sm", className: "h-9 opacity-60" })} disabled title="Cần dịch vụ tính toán để chạy so sánh" type="button">
           <Play size={14} fill="currentColor" />
           So sánh
         </button>
@@ -318,17 +423,17 @@ function ComparisonSection() {
 function MonthlySizingSection() {
   return (
     <Card className="mt-3 bg-white p-4 shadow-none">
-      <h2 className="text-sm font-extrabold uppercase text-brand-blue">Sizing & P_max THEO THÁNG (dataset nhiều tháng từ API)</h2>
+      <h2 className="text-sm font-bold uppercase text-brand-blue">Sizing & P_max THEO THÁNG (dataset nhiều tháng từ API)</h2>
       <div className="mt-3 flex flex-wrap items-end gap-4">
         <LabeledSelect label="Dataset" value="real" width="120px" />
-        <button className={buttonVariants({ size: "sm", className: "bg-blue-100 text-brand-blue hover:bg-blue-100" })} type="button">Sizing từng tháng</button>
+        <button className={buttonVariants({ size: "sm", className: "bg-slate-100 text-brand-muted opacity-60" })} disabled title="Cần dữ liệu nhiều tháng và dịch vụ tính toán" type="button">Sizing từng tháng</button>
         <LabeledInput label="E_cap đã chọn" value="500" />
         <LabeledInput label="P_rated đã chọn" value="250" />
-        <button className={buttonVariants({ variant: "secondary", size: "sm", className: "h-9 text-xs" })} type="button">P_max từng tháng cho sizing này</button>
+        <button className={buttonVariants({ variant: "secondary", size: "sm", className: "h-9 text-xs opacity-60" })} disabled title="Cần dịch vụ tính toán theo tháng" type="button">P_max từng tháng cho sizing này</button>
       </div>
       <FullTable
         className="mt-3"
-        headers={["Tháng", "Ngày", "E khuyến nghị (kWh)", "P (kW)", "P_max HD (kW)", "Tiết kiệm oracle (tr/tháng)", ""]}
+        headers={["Tháng", "Ngày", "E khuyến nghị (kWh)", "P (kW)", "P_max HĐ (kW)", "Tiết kiệm tham chiếu (tr/tháng)", ""]}
         rows={monthlyRows}
       />
     </Card>
@@ -380,7 +485,7 @@ function MiniTable({
 }) {
   return (
     <div>
-      <h3 className="text-xs font-extrabold text-brand-navy">{title}</h3>
+      <h3 className="text-xs font-bold text-brand-navy">{title}</h3>
       <table className="mt-2 w-full text-left text-xs font-semibold text-brand-navy">
         <thead className="border-b border-brand-line text-brand-muted">
           <tr>{headers.map((head) => <th className="py-1.5 font-bold" key={head}>{head}</th>)}</tr>

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import {
@@ -42,15 +42,13 @@ const modelRows = [
   "Kết quả: Cấu hình tối ưu & phân tích hiệu quả tài chính"
 ];
 
-export function BessPlannerInputPage() {
-  return (
-    <>
-      <AppHeader activeItem="BESS Planner" variant="planner" />
-      <main className="mx-auto w-[min(1920px,calc(100%_-_88px))] pb-4 pt-5 max-xl:w-[min(1220px,calc(100%_-_42px))]">
+export function BessPlannerInputPage({ embedded = false }: { embedded?: boolean } = {}) {
+  const content = (
+      <main className={embedded ? "w-full pb-7 pt-7" : "mx-auto w-[min(1920px,calc(100%_-_88px))] pb-4 pt-5 max-xl:w-[min(1220px,calc(100%_-_42px))]"}>
         <Breadcrumb />
 
         <section className="mt-4">
-          <h1 className="text-[34px] font-extrabold leading-tight text-brand-navy">Tạo dự án BESS Planner</h1>
+          <h1 className="text-[34px] font-bold leading-tight text-brand-navy">Tạo dự án BESS Planner</h1>
           <p className="mt-2 text-base font-semibold text-brand-muted">
             Nhập thông tin dự án và tải lên dữ liệu để bắt đầu phân tích và tối ưu hệ thống BESS
           </p>
@@ -69,6 +67,16 @@ export function BessPlannerInputPage() {
           </aside>
         </div>
       </main>
+  );
+
+  if (embedded) {
+    return content;
+  }
+
+  return (
+    <>
+      <AppHeader activeItem="BESS Planner" variant="planner" />
+      {content}
     </>
   );
 }
@@ -93,7 +101,7 @@ function PlannerStepper() {
       {plannerSteps.map((step, index) => (
         <Fragment key={step.number}>
           <div className="flex items-center gap-4">
-            <span className={cn("grid size-9 place-items-center rounded-full border text-base font-black", step.active ? "border-brand-blue bg-brand-blue text-white" : "border-blue-200 bg-white text-brand-muted")}>
+            <span className={cn("grid size-9 place-items-center rounded-full border text-base font-bold", step.active ? "border-brand-blue bg-brand-blue text-white" : "border-blue-200 bg-white text-brand-muted")}>
               {step.number}
             </span>
             <span className="min-w-[106px]">
@@ -143,7 +151,7 @@ function PlannerInputCard() {
 function ProjectInfoContent() {
   return (
     <div>
-      <h2 className="text-lg font-extrabold text-brand-navy">Thông tin dự án</h2>
+      <h2 className="text-lg font-bold text-brand-navy">Thông tin dự án</h2>
       <div className="mt-3 grid grid-cols-3 gap-x-7 gap-y-2.5 max-lg:grid-cols-1">
         <InputField label="Tên dự án" required placeholder="Nhập tên dự án" />
         <InputField label="Địa điểm" required placeholder="Nhập địa điểm dự án" />
@@ -189,7 +197,7 @@ function ActionBar() {
     <div className="grid grid-cols-[120px_1fr_180px] items-center border-t border-brand-line bg-white p-4">
       <button className={buttonVariants({ variant: "secondary", className: "h-12 border-brand-line text-brand-navy" })} type="button">Hủy</button>
       <span />
-      <Link className={buttonVariants({ className: "h-12 bg-brand-blue text-white hover:bg-brand-blue/90" })} href="/bess-planner/ket-qua">
+      <Link className={buttonVariants({ className: "h-12 bg-brand-blue text-white hover:bg-brand-blue/90" })} href="/customer-portal/du-an-cua-toi/ket-qua">
         Tiếp tục
         <ChevronDown className="-rotate-90" size={20} />
       </Link>
@@ -201,11 +209,11 @@ function DataQualityCard() {
   return (
     <Card className="min-w-0 bg-white p-3.5 shadow-none">
       <div className="mb-1.5 flex items-center justify-between">
-        <h2 className="flex items-center gap-3 text-lg font-extrabold text-brand-navy">
+        <h2 className="flex items-center gap-3 text-lg font-bold text-brand-navy">
           <ShieldCheck className="text-brand-blue" size={24} />
           Kiểm tra chất lượng dữ liệu
         </h2>
-        <span className="rounded-md bg-green-50 px-3 py-1 text-sm font-extrabold text-brand-green">Tốt</span>
+        <span className="rounded-md bg-green-50 px-3 py-1 text-sm font-bold text-brand-green">Tốt</span>
       </div>
       <div className="divide-y divide-brand-line">
         {qualityRows.map(([label, value, ok]) => (
@@ -217,7 +225,7 @@ function DataQualityCard() {
         ))}
       </div>
       <div className="mt-1 flex justify-end">
-        <span className="rounded-md bg-brand-green px-5 py-1 text-sm font-extrabold text-white">Hợp lệ</span>
+        <span className="rounded-md bg-brand-green px-5 py-1 text-sm font-bold text-white">Hợp lệ</span>
       </div>
     </Card>
   );
@@ -226,7 +234,7 @@ function DataQualityCard() {
 function ModelSetupCard() {
   return (
     <Card className="min-w-0 bg-white p-4 shadow-none">
-      <h2 className="flex items-center gap-3 text-lg font-extrabold text-brand-navy">
+      <h2 className="flex items-center gap-3 text-lg font-bold text-brand-navy">
         <span className="grid size-9 place-items-center rounded-md bg-green-50 text-brand-green">
           <FileSpreadsheet size={22} />
         </span>

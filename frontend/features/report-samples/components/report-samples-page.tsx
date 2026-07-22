@@ -1,4 +1,4 @@
-import {
+﻿import {
   BarChart3,
   BatteryCharging,
   CalendarDays,
@@ -67,8 +67,8 @@ export function ReportSamplesPage() {
       <main>
         <section className="site-container grid min-h-[350px] grid-cols-[0.72fr_1fr] items-center gap-10 pt-6 max-lg:grid-cols-1">
           <div>
-            <span className="rounded-full bg-green-50 px-4 py-1.5 text-xs font-extrabold uppercase text-brand-green">Báo cáo mẫu</span>
-            <h1 className="mt-5 text-[46px] font-extrabold leading-[1.08] text-brand-navy max-xl:text-4xl">
+            <span className="rounded-full bg-green-50 px-4 py-1.5 text-xs font-bold uppercase text-brand-green">Báo cáo mẫu</span>
+            <h1 className="mt-5 text-[46px] font-bold leading-[1.08] text-brand-navy max-xl:text-4xl">
               Báo cáo mẫu <span className="text-brand-green">BESS</span>
               <br />
               cho doanh nghiệp
@@ -87,7 +87,7 @@ export function ReportSamplesPage() {
 
         <section className="site-container">
           <Card className="bg-white p-5 shadow-none">
-            <h2 className="text-lg font-extrabold text-brand-navy">Danh mục báo cáo mẫu</h2>
+            <h2 className="text-lg font-bold text-brand-navy">Danh mục báo cáo mẫu</h2>
             <div className="mt-4 grid grid-cols-4 gap-4 max-xl:grid-cols-2 max-md:grid-cols-1">
               {reportCards.map((item) => (
                 <ReportCard key={item.title} {...item} />
@@ -98,7 +98,7 @@ export function ReportSamplesPage() {
 
         <section className="site-container mt-3">
           <Card className="bg-white p-5 shadow-none">
-            <h2 className="text-lg font-extrabold text-brand-navy">Báo cáo của chúng tôi bao gồm những gì?</h2>
+            <h2 className="text-lg font-bold text-brand-navy">Báo cáo của chúng tôi bao gồm những gì?</h2>
             <div className="mt-4 grid grid-cols-7 divide-x divide-brand-line max-xl:grid-cols-3 max-xl:divide-x-0 max-xl:gap-4 max-sm:grid-cols-1">
               {includedItems.map((item) => (
                 <InfoItem key={item.title} {...item} />
@@ -116,9 +116,9 @@ export function ReportSamplesPage() {
               <Zap className="absolute bottom-7 left-32 text-brand-green" size={24} />
             </div>
             <div>
-              <h2 className="text-xl font-extrabold text-brand-navy">Sẵn sàng bắt đầu đánh giá đầu tư BESS cho doanh nghiệp của bạn?</h2>
+              <h2 className="text-xl font-bold text-brand-navy">Sẵn sàng bắt đầu đánh giá đầu tư BESS cho doanh nghiệp của bạn?</h2>
               <p className="mt-1 text-sm font-semibold text-brand-muted">
-                Sử dụng Quick Sizing để ước tính nhanh hoặc đăng nhập BESS Planner để phân tích chuyên sâu và xuất báo cáo chi tiết.
+                Sử dụng Quick Sizing để ước tính nhanh hoặc mở BESS Planner để phân tích chuyên sâu và xuất báo cáo chi tiết.
               </p>
             </div>
             <div className="flex gap-4 max-sm:flex-col">
@@ -126,9 +126,9 @@ export function ReportSamplesPage() {
                 <Zap size={18} />
                 Dùng Quick Sizing
               </a>
-              <a className={buttonVariants({ variant: "green", className: "min-w-[250px]" })} href="/customer-portal">
+              <a className={buttonVariants({ variant: "green", className: "min-w-[250px]" })} href="/customer-portal/du-an-cua-toi">
                 <Lock size={17} />
-                Đăng nhập BESS Planner
+                Mở BESS Planner
               </a>
             </div>
           </div>
@@ -148,13 +148,13 @@ function ReportHeroPreview() {
         <div className="flex items-center gap-3 text-brand-navy">
           <BarChart3 className="text-brand-green" size={24} />
           <strong className="text-lg">BESS Project Report</strong>
-          <span className="ml-auto text-[10px] font-bold text-brand-muted">EnergyInsight</span>
+          <span className="ml-auto text-xs font-bold text-brand-muted">EnergyInsight</span>
         </div>
-        <h3 className="mt-5 text-sm font-extrabold text-brand-navy">Executive Summary</h3>
+        <h3 className="mt-5 text-sm font-bold text-brand-navy">Executive Summary</h3>
         <div className="mt-3 grid grid-cols-4 gap-3">
           {["18,7 tỷ VND", "18,6 %", "5,1 năm", "2,18 tỷ VND"].map((value) => (
             <div className="rounded-lg border border-brand-line p-3" key={value}>
-              <small className="block text-[10px] font-bold text-brand-muted">KPI dự án</small>
+              <small className="block text-xs font-bold text-brand-muted">KPI dự án</small>
               <strong className="mt-2 block text-lg text-brand-navy">{value}</strong>
             </div>
           ))}
@@ -165,20 +165,20 @@ function ReportHeroPreview() {
         </div>
       </div>
       <div className="absolute right-20 top-4 h-[292px] w-[280px] rotate-[-5deg] rounded-lg border border-brand-line bg-white p-4 shadow-panel max-xl:right-4">
-        <h3 className="text-sm font-extrabold text-brand-navy">Kết quả sizing & P_max</h3>
+        <h3 className="text-sm font-bold text-brand-navy">Kết quả sizing & P_max</h3>
         <MiniLineChart small />
         <div className="mt-4 grid gap-2">
           {Array.from({ length: 6 }).map((_, index) => <span className="h-2 rounded bg-blue-100" key={index} />)}
         </div>
       </div>
       <div className="absolute right-0 top-14 h-[250px] w-[245px] rotate-[8deg] rounded-lg border border-brand-line bg-white p-4 shadow-panel">
-        <h3 className="text-sm font-extrabold text-brand-navy">Phân tích biểu giá & hệ thống</h3>
+        <h3 className="text-sm font-bold text-brand-navy">Phân tích biểu giá & hệ thống</h3>
         <div className="mt-4 flex h-24 items-end gap-2">
           {[42, 58, 80, 50, 72, 98, 60].map((h) => <span className="w-6 rounded-t bg-blue-500/75" style={{ height: h }} key={h} />)}
         </div>
       </div>
       <div className="absolute bottom-6 right-3 flex items-center gap-4 rounded-xl border border-brand-line bg-white px-5 py-4 shadow-panel">
-        <span className="grid size-12 place-items-center rounded-md border-2 border-red-500 text-xs font-black text-red-500">PDF</span>
+        <span className="grid size-12 place-items-center rounded-md border-2 border-red-500 text-xs font-bold text-red-500">PDF</span>
         <strong className="text-sm leading-5 text-brand-navy">Báo cáo PDF<br />dễ dàng tải về</strong>
       </div>
     </div>
@@ -198,10 +198,13 @@ function HeroTrust({ icon: Icon, text, title }: { icon: typeof FileText; text: s
 }
 
 function ReportCard({ bullets, icon: Icon, text, title, tone }: (typeof reportCards)[number]) {
+  const previewHref = title === "Quick Sizing Summary" ? "/quick-sizing/ket-qua" : "/customer-portal/du-an-cua-toi/ket-qua";
+  const downloadHref = `data:text/plain;charset=utf-8,${encodeURIComponent(`${title}\nEnergyInsight sample report`)}`;
+
   return (
     <div className="grid min-h-[178px] grid-cols-[1fr_150px] gap-4 rounded-lg border border-brand-line p-4">
       <div>
-        <h3 className="flex items-center gap-3 text-sm font-extrabold text-brand-navy">
+        <h3 className="flex items-center gap-3 text-sm font-bold text-brand-navy">
           <Icon className={cn(tone === "green" ? "text-brand-green" : tone === "orange" ? "text-orange-500" : tone === "purple" ? "text-violet-600" : "text-brand-blue")} size={24} />
           {title}
         </h3>
@@ -215,12 +218,12 @@ function ReportCard({ bullets, icon: Icon, text, title, tone }: (typeof reportCa
           ))}
         </div>
         <div className="mt-4 flex gap-3">
-          <a className={buttonVariants({ variant: "secondary", size: "sm", className: "h-8 px-4 text-xs" })} href="#">
+          <a className={buttonVariants({ variant: "secondary", size: "sm", className: "h-8 px-4 text-xs" })} href={previewHref}>
             Xem mẫu
           </a>
-          <a className={buttonVariants({ size: "sm", className: cn("h-8 px-4 text-xs text-white", tone === "green" ? "bg-brand-green" : tone === "orange" ? "bg-orange-500" : tone === "purple" ? "bg-violet-600" : "bg-brand-blue") })} href="#">
+          <a className={buttonVariants({ size: "sm", className: cn("h-8 px-4 text-xs text-white", tone === "green" ? "bg-brand-green" : tone === "orange" ? "bg-orange-500" : tone === "purple" ? "bg-violet-600" : "bg-brand-blue") })} href={downloadHref} download={`${title.toLowerCase().replaceAll(" ", "-")}.txt`}>
             <Download size={14} />
-            Tải mẫu PDF
+            Tải bản mô tả
           </a>
         </div>
       </div>
@@ -274,9 +277,9 @@ function MiniDonut() {
   return (
     <div className="grid h-[118px] grid-cols-[100px_1fr] items-center rounded-lg border border-brand-line p-3">
       <div className="grid size-20 place-items-center rounded-full bg-[conic-gradient(#075BEA_0_45%,#0ca34b_45%_70%,#69b8ff_70%_88%,#dbe7f8_88%_100%)]">
-        <div className="grid size-12 place-items-center rounded-full bg-white text-center text-xs font-black text-brand-navy">11,2 tỷ</div>
+        <div className="grid size-12 place-items-center rounded-full bg-white text-center text-xs font-bold text-brand-navy">11,2 tỷ</div>
       </div>
-      <div className="grid gap-2 text-[10px] font-semibold text-brand-muted">
+      <div className="grid gap-2 text-xs font-semibold text-brand-muted">
         <span>Pin/BESS 50%</span>
         <span>PCS 18%</span>
         <span>Hệ thống phụ trợ 12%</span>

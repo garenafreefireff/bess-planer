@@ -1,10 +1,10 @@
-import Image from "next/image";
+﻿import Image from "next/image";
 
 export function ComparisonHero() {
   return (
     <section className="site-container relative min-h-[154px] overflow-hidden py-6">
       <div className="relative z-[1] max-w-[980px]">
-        <h1 className="whitespace-nowrap text-[40px] font-extrabold leading-tight text-brand-navy max-xl:whitespace-normal max-sm:text-3xl">
+        <h1 className="whitespace-nowrap text-[40px] font-bold leading-tight text-brand-navy max-xl:whitespace-normal max-sm:text-3xl">
           Chọn công cụ phù hợp cho nhu cầu của bạn
         </h1>
         <p className="mt-2 max-w-[760px] text-[14px] font-semibold leading-6 text-brand-muted">

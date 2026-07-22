@@ -1,4 +1,4 @@
-import { processSteps } from "../data/tool-comparison-content";
+﻿import { processSteps } from "../data/tool-comparison-content";
 import { Fragment } from "react";
 
 export function ComparisonProcess() {
@@ -8,12 +8,12 @@ export function ComparisonProcess() {
         {processSteps.map(({ icon: Icon, number, text, title }, index) => (
           <Fragment key={title}>
             <div className="flex items-center gap-4">
-              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-blue text-lg font-black text-white">{number}</span>
+              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-blue text-lg font-bold text-white">{number}</span>
               <span className="grid size-12 shrink-0 place-items-center rounded-xl border border-brand-line bg-blue-50 text-brand-blue">
                 <Icon size={27} />
               </span>
               <div className="min-w-0">
-                <h3 className="text-sm font-extrabold leading-tight text-brand-blue">{title}</h3>
+                <h3 className="text-sm font-bold leading-tight text-brand-blue">{title}</h3>
                 <p className="mt-1 text-xs leading-5 text-brand-muted">{text}</p>
               </div>
             </div>

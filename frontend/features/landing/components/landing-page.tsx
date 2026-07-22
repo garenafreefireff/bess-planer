@@ -10,14 +10,16 @@ export function LandingPage() {
   return (
     <>
       <PublicHeader activeItem="Giới thiệu" />
-      <main className="pb-16">
+      <main className="overflow-hidden">
         <HeroSection />
-        <div className="grid gap-16">
-          <WhyChoose />
-          <ToolComparison />
-          <StepsAndPreview />
-          <LogoStrip />
+        <div className="border-y border-brand-line/80 bg-slate-50/70 py-14 max-sm:py-10">
+          <div className="site-container grid grid-cols-[0.88fr_1.12fr] gap-6 max-xl:grid-cols-1">
+            <WhyChoose />
+            <ToolComparison />
+          </div>
         </div>
+        <StepsAndPreview />
+        <LogoStrip />
       </main>
       <PublicFooter />
     </>

@@ -1,13 +1,13 @@
-import { PublicFooter } from "@/components/layout/public-footer";
 import { PublicHeader } from "@/components/layout/public-header";
-import { QuickSizingAssumptionContent } from "./quick-sizing-assumption-content";
+import { PublicFooter } from "@/components/layout/public-footer";
+import { QuickSizingAssumptionFlow } from "./quick-sizing-assumption-flow";
 
 export function QuickSizingAssumptionPage() {
   return (
     <>
       <PublicHeader activeItem="Quick Sizing" />
       <main>
-        <QuickSizingAssumptionContent />
+        <QuickSizingAssumptionFlow />
       </main>
       <PublicFooter />
     </>

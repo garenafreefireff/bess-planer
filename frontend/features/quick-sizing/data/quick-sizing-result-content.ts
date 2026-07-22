@@ -26,8 +26,8 @@ export const resultMetrics: Array<{ label: string; value: string; unit?: string;
   { label: "CAPEX ước tính", value: "11,2", unit: "tỷ VNĐ", icon: Wallet, tone: "orange" },
   { label: "Tiết kiệm điện/năm", value: "2,18", unit: "tỷ VNĐ/năm", icon: ChartNoAxesCombined, tone: "green" },
   { label: "Payback ước tính", value: "5,1", unit: "năm", icon: TimerReset, tone: "blue" },
-  { label: "NPV (15 năm)", value: "18,7", unit: "tỷ VNĐ", icon: LineChart, tone: "purple" },
-  { label: "IRR (ước tính)", value: "18,6", unit: "%", icon: Target, tone: "green" }
+  { label: "NPV 10 năm", value: "12,45", unit: "tỷ VNĐ", icon: LineChart, tone: "purple" },
+  { label: "IRR (ước tính)", value: "23,85", unit: "%", icon: Target, tone: "green" }
 ];
 
 export const assumptionRows = [
@@ -37,7 +37,7 @@ export const assumptionRows = [
   ["Hiệu suất hệ thống (round-trip)", "90 %"],
   ["Chi phí O&M", "2,0 % CAPEX/năm"],
   ["Tuổi thọ pin (chu kỳ)", "6.000 chu kỳ"],
-  ["Thời gian phân tích", "15 năm"],
+  ["Thời gian phân tích", "10 năm"],
   ["Thuế TNDN", "20 %"],
   ["Các khoản phí & lệ phí", "Đã bao gồm"]
 ];

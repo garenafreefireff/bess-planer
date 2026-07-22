@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { Bell, ChevronDown, CircleHelp, Globe2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BrandPair } from "./brand-logo";
@@ -12,7 +12,7 @@ type AppHeaderUser = {
 };
 
 const plannerNav = [
-  { label: "Giới thiệu", href: "#" },
+  { label: "Giới thiệu", href: "/" },
   { label: "So sánh công cụ", href: "/so-sanh-cong-cu" },
   { label: "Quick Sizing", href: "/quick-sizing" },
   { label: "BESS Planner", href: "/bess-planner" },
@@ -24,7 +24,7 @@ const dashboardNav = [
   { label: "Trang chủ", href: "/" },
   { label: "Quick Sizing", href: "/quick-sizing" },
   { label: "BESS Planner", href: "/bess-planner" },
-  { label: "Dự án của tôi", href: "#" },
+  { label: "Dự án của tôi", href: "/customer-portal/du-an-cua-toi" },
   { label: "Báo cáo", href: "/bao-cao-mau" }
 ];
 
@@ -68,7 +68,7 @@ export function AppHeader({
         )}
       >
         {isDashboard ? (
-          <Link className="flex min-w-[230px] items-center gap-2 text-xl font-extrabold text-brand-navy" href="/bess-planner">
+          <Link className="flex min-w-[230px] items-center gap-2 text-xl font-bold text-brand-navy" href="/customer-portal">
             <span className="grid size-6 place-items-center rounded-full bg-gradient-to-br from-sky-300 to-brand-blue">
               <span className="size-3 rounded-full bg-white/85" />
             </span>
@@ -80,7 +80,7 @@ export function AppHeader({
 
         <nav
           className={cn(
-            "flex flex-1 justify-center text-sm font-bold text-brand-navy",
+            "flex flex-1 justify-center text-sm font-semibold text-brand-navy",
             isDashboard ? "gap-[clamp(34px,4vw,78px)]" : "gap-[clamp(30px,3.2vw,70px)]"
           )}
         >
@@ -101,7 +101,7 @@ export function AppHeader({
 
         <div className={cn("flex items-center text-brand-navy", isDashboard ? "gap-5" : "gap-5")}>
           {!isDashboard ? (
-            <button className="inline-flex items-center gap-2 font-bold" type="button">
+            <button className="inline-flex items-center gap-2 font-semibold" type="button">
               <Globe2 size={19} />
               <span>VI</span>
               <ChevronDown size={16} />
@@ -116,8 +116,8 @@ export function AppHeader({
             <Bell size={isDashboard ? 18 : 22} />
             <span
               className={cn(
-                "absolute grid place-items-center rounded-full bg-red-500 font-black text-white",
-                isDashboard ? "-right-1.5 -top-2 size-4 text-[10px]" : "-right-2 -top-2 size-5 text-[11px]"
+                "absolute grid place-items-center rounded-full bg-red-500 font-bold text-white",
+                isDashboard ? "-right-1.5 -top-2 size-4 text-xs" : "-right-2 -top-2 size-5 text-xs"
               )}
             >
               {count}
@@ -131,7 +131,7 @@ export function AppHeader({
           <button className="flex items-center gap-3" type="button">
             <span
               className={cn(
-                "grid place-items-center rounded-full text-sm font-black text-white",
+                "grid place-items-center rounded-full text-sm font-bold text-white",
                 isDashboard ? "size-8 bg-brand-navy text-xs" : "size-10 bg-brand-blue"
               )}
             >

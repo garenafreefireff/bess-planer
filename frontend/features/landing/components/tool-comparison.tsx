@@ -1,16 +1,17 @@
-import { ArrowRight, Check, Gauge, LockKeyhole, Zap } from "lucide-react";
+﻿import { ArrowRight, Check, Gauge, LockKeyhole, Zap } from "lucide-react";
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 import { plannerToolItems, quickToolItems } from "../data/landing-content";
 
 export function ToolComparison() {
   return (
-    <section className="site-container">
-      <h2 className="text-[26px] font-bold text-brand-navy">Hai công cụ - Một mục tiêu</h2>
-      <div className="mt-6 grid grid-cols-[1fr_64px_1fr] items-stretch gap-6 max-sm:grid-cols-1">
+    <section id="so-sanh-cong-cu" className="rounded-2xl border border-brand-line bg-white p-7 shadow-panel max-sm:p-5">
+      <span className="text-xs font-bold uppercase tracking-[0.12em] text-brand-green">Lựa chọn theo nhu cầu</span>
+      <h2 className="mt-2 text-[24px] font-bold leading-tight text-brand-navy">Hai công cụ, một mục tiêu đầu tư hiệu quả</h2>
+      <p className="mt-3 text-sm leading-6 text-brand-muted">Bắt đầu bằng ước tính nhanh, sau đó chuyển sang mô phỏng chuyên sâu khi đã có dữ liệu vận hành.</p>
+      <div className="mt-6 grid grid-cols-[1fr_48px_1fr] items-stretch gap-4 max-md:grid-cols-1">
         <ToolCard
           icon={<Zap size={30} />}
           title="Quick Sizing"
@@ -20,14 +21,14 @@ export function ToolComparison() {
           cta="Dùng Quick Sizing"
           tone="blue"
         />
-        <div className="grid size-10 place-items-center self-center justify-self-center rounded-full border border-brand-line bg-white text-sm font-black text-brand-navy shadow-panel">VS</div>
+        <div className="grid size-10 place-items-center self-center justify-self-center rounded-full border border-brand-line bg-slate-50 text-xs font-bold text-brand-muted max-md:hidden">VS</div>
         <ToolCard
           icon={<Gauge size={30} />}
           title="BESS Planner"
           badge="Phân tích chuyên sâu"
           description="Nền tảng phân tích chi tiết và lập kế hoạch đầu tư BESS với mô phỏng đa kịch bản và báo cáo chuyên nghiệp."
           items={plannerToolItems}
-          cta="Đăng nhập BESS Planner"
+          cta="Mở BESS Planner"
           tone="green"
         />
       </div>
@@ -53,26 +54,27 @@ function ToolCard({
   tone: "blue" | "green";
 }) {
   const isGreen = tone === "green";
+  const href = isGreen ? "/bess-planner" : "/quick-sizing";
 
   return (
-    <Card className={cn("flex min-h-[310px] flex-col overflow-hidden rounded-xl p-[26px] shadow-panel transition hover:-translate-y-0.5 hover:shadow-soft", isGreen ? "bg-[#F4FCF7]" : "bg-[#F5F8FF]")}>
-      <div className="flex items-center gap-3 border-b border-dashed border-slate-300 pb-4">
+    <Card className={isGreen ? "flex min-h-[310px] flex-col overflow-hidden border-green-100 bg-gradient-to-br from-green-50/80 to-white p-5 shadow-none" : "flex min-h-[310px] flex-col overflow-hidden border-blue-100 bg-gradient-to-br from-blue-50/70 to-white p-5 shadow-none"}>
+      <div className="flex items-center gap-2.5 border-b border-dashed border-slate-300 pb-4">
         <span className={isGreen ? "text-brand-green" : "text-brand-blue"}>{icon}</span>
-        <h3 className={isGreen ? "text-[22px] font-bold text-brand-green" : "text-[22px] font-bold text-brand-blue"}>{title}</h3>
+        <h3 className={isGreen ? "text-[21px] font-bold text-brand-green" : "text-[21px] font-bold text-brand-blue"}>{title}</h3>
         <Badge className="ml-auto" variant={isGreen ? "green" : "blue"}>
           {badge}
         </Badge>
       </div>
-      <p className="mt-5 max-w-[560px] text-sm font-medium leading-[1.5] text-[#5D6D86]">{description}</p>
-      <ul className="mt-5 grid gap-3 text-sm font-semibold text-brand-navy">
+      <p className="mt-4 text-[13px] font-medium leading-5 text-brand-muted">{description}</p>
+      <ul className="mt-4 grid gap-2.5 text-[13px] text-brand-navy">
         {items.map((item) => (
-          <li className="flex items-center gap-2" key={item}>
-            <Check className={isGreen ? "text-brand-green" : "text-brand-blue"} size={17} />
+          <li className="flex items-start gap-2.5" key={item}>
+            <Check className={isGreen ? "mt-0.5 shrink-0 text-brand-green" : "mt-0.5 shrink-0 text-brand-blue"} size={16} />
             {item}
           </li>
         ))}
       </ul>
-      <a className={buttonVariants({ variant: isGreen ? "green" : "default", className: "mt-auto h-[46px] w-full rounded-lg text-sm" })} href={isGreen ? "/customer-portal" : "/quick-sizing"}>
+      <a className={buttonVariants({ variant: isGreen ? "green" : "default", className: "mt-auto h-10 w-full text-sm" })} href={href}>
         {isGreen ? <LockKeyhole size={16} /> : null}
         {cta}
         <ArrowRight size={18} />

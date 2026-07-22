@@ -18,6 +18,9 @@ const config: Config = {
       }
     },
     extend: {
+      fontFamily: {
+        sans: ["var(--font-be-vietnam-pro)", "ui-sans-serif", "system-ui", "sans-serif"]
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -53,11 +56,11 @@ const config: Config = {
           foreground: "hsl(var(--card-foreground))"
         },
         brand: {
-          navy: "#09275C",
-          blue: "#075DEB",
-          green: "#08A64A",
+          navy: "#061B52",
+          blue: "#075BEA",
+          green: "#0CA34B",
           muted: "#627194",
-          line: "#DDE6F3"
+          line: "#DBE6F6"
         }
       },
       borderRadius: {

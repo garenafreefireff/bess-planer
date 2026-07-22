@@ -1,11 +1,14 @@
+"use client";
+
+import Link from "next/link";
 import {
   ArrowLeft,
   ArrowRight,
-  CalendarDays,
   Check,
   ChevronDown,
-  CircleHelp,
+  Eye,
   Info,
+  LockKeyhole,
   RotateCcw,
   Shield,
   ShieldCheck,
@@ -13,132 +16,136 @@ import {
   TriangleAlert,
   Zap
 } from "lucide-react";
-import { Fragment } from "react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-const scenarioCards = [
-  { title: "Mặc định đề xuất", description: "Khuyến nghị cho ước tính nhanh", icon: Shield, selected: true },
-  { title: "Lạc quan", description: "Giả định hiệu quả tối ưu", icon: ShieldCheck },
-  { title: "Thận trọng", description: "Giả định bảo thủ", icon: CircleHelp },
-  { title: "Tùy chỉnh", description: "Tự thiết lập giả định", icon: SlidersHorizontal }
+type Tone = "blue" | "green" | "amber" | "purple" | "slate";
+
+type AssumptionRow = {
+  key: string;
+  label: string;
+  min: number;
+  max: number;
+  value: number;
+  unit: string;
+  source?: "Tự động đề xuất" | "Mặc định hệ thống" | "Đã chỉnh sửa";
+  step?: number;
+};
+
+const scenarios = [
+  { title: "Mặc định đề xuất", description: "Phù hợp nhất với dữ liệu Bước 1", icon: Shield, tone: "blue" },
+  { title: "Lạc quan", description: "Hiệu suất cao, CAPEX thấp", icon: ShieldCheck, tone: "green" },
+  { title: "Thận trọng", description: "Chi phí và chiết khấu bảo thủ", icon: Info, tone: "amber" },
+  { title: "Tùy chỉnh", description: "Tự thiết lập giả định", icon: SlidersHorizontal, tone: "purple" }
+] as const;
+
+const inheritedChips = [
+  "Sản xuất",
+  "5.000 kVA",
+  "1,2 tỷ/tháng",
+  "22 kV",
+  "16 giờ/ngày",
+  "Không có PV",
+  "Mục tiêu: Tiết kiệm điện"
 ];
 
-const technicalLeft = [
-  { label: "Dung lượng BESS dự kiến", min: "100", max: "5.000", value: "1.000", unit: "kWh", progress: 46 },
-  { label: "Công suất BESS dự kiến", min: "50", max: "2.000", value: "500", unit: "kW", progress: 39 },
-  { label: "DoD (Depth of Discharge)", min: "50%", max: "100%", value: "90", unit: "%", progress: 77 },
-  { label: "RTE (Hiệu suất vòng)", min: "70%", max: "100%", value: "90", unit: "%", progress: 69 }
+const technicalRows: AssumptionRow[] = [
+  { key: "energy", label: "Dung lượng BESS", min: 100, max: 5000, value: 1000, unit: "kWh", source: "Tự động đề xuất" },
+  { key: "power", label: "Công suất BESS", min: 50, max: 2000, value: 500, unit: "kW", source: "Tự động đề xuất" },
+  { key: "dod", label: "DoD", min: 50, max: 100, value: 90, unit: "%", source: "Mặc định hệ thống" },
+  { key: "rte", label: "RTE", min: 70, max: 100, value: 90, unit: "%", source: "Mặc định hệ thống" },
+  { key: "degradation", label: "Suy hao pin", min: 0, max: 5, value: 2, unit: "%/năm", source: "Mặc định hệ thống", step: 0.1 },
+  { key: "cycles", label: "Chu kỳ sạc/xả", min: 0.5, max: 3, value: 1, unit: "chu kỳ/ngày", source: "Tự động đề xuất", step: 0.1 },
+  { key: "days", label: "Ngày vận hành", min: 200, max: 365, value: 300, unit: "ngày/năm", source: "Tự động đề xuất" }
 ];
 
-const technicalRight = [
-  { label: "Suy hao pin", min: "0%/năm", max: "5%/năm", value: "2,0", unit: "%/năm", progress: 52 },
-  { label: "Chu kỳ sạc/xả", min: "0,5", max: "3", value: "1,0", unit: "chu kỳ/ngày", progress: 42 },
-  { label: "Ngày vận hành hệ thống", min: "200", max: "365", value: "300", unit: "ngày/năm", progress: 51 }
+const costRows = [
+  { label: "Chi phí pin", value: "6.000.000", unit: "VND/kWh" },
+  { label: "Chi phí PCS", value: "2.000.000", unit: "VND/kW" },
+  { label: "Chi phí EPC cố định", value: "1.500.000.000", unit: "VND" },
+  { label: "O&M hằng năm", value: "2,0", unit: "% CAPEX/năm" },
+  { label: "Tăng O&M", value: "2,0", unit: "%/năm" }
 ];
 
-const investmentRows = [
-  ["Chi phí pin (Battery)", "6.000.000", "VNĐ/kWh"],
-  ["Chi phí PCS (Power Conversion System)", "2.000.000", "VNĐ/kW"],
-  ["Chi phí cố định & EPC", "1.500.000.000", "VNĐ"],
-  ["O&M hàng năm", "2,0", "% CAPEX/năm"],
-  ["Tăng chi phí O&M hàng năm", "2,0", "%/năm"]
+const tariffRows: AssumptionRow[] = [
+  { key: "offPeak", label: "Giá thấp điểm", min: 500, max: 2000, value: 1028, unit: "VND/kWh" },
+  { key: "normal", label: "Giá bình thường", min: 800, max: 2500, value: 1666, unit: "VND/kWh" },
+  { key: "peak", label: "Giá cao điểm", min: 1200, max: 3500, value: 2797, unit: "VND/kWh" },
+  { key: "demand", label: "Giá công suất", min: 50000, max: 200000, value: 150000, unit: "VND/kW/tháng" },
+  { key: "priceEscalation", label: "Tăng giá điện", min: 0, max: 10, value: 5, unit: "%/năm", step: 0.1 }
 ];
 
-const tariffRows = [
-  { label: "Giá thấp điểm", min: "500", max: "2.000", value: "1.028", progress: 31 },
-  { label: "Giá bình thường", min: "800", max: "2.500", value: "1.666", progress: 39 },
-  { label: "Giá cao điểm", min: "1.200", max: "3.500", value: "2.797", progress: 57 },
-  { label: "Giá công suất (VNĐ/kW/tháng)", min: "50.000", max: "200.000", value: "150.000", progress: 45 }
+const financeRows: AssumptionRow[] = [
+  { key: "debt", label: "Tỷ lệ vốn vay", min: 0, max: 100, value: 70, unit: "%" },
+  { key: "interest", label: "Lãi suất vay", min: 5, max: 15, value: 9, unit: "%/năm", step: 0.1 },
+  { key: "loanTenor", label: "Thời hạn vay", min: 5, max: 15, value: 7, unit: "năm" },
+  { key: "wacc", label: "WACC", min: 5, max: 20, value: 10, unit: "%", step: 0.1 },
+  { key: "tax", label: "Thuế TNDN", min: 10, max: 30, value: 20, unit: "%" }
 ];
 
-const financeRows = [
-  { label: "Tỷ lệ vốn vay", min: "0%", max: "100%", value: "70", unit: "%", progress: 70 },
-  { label: "Lãi suất vay", min: "5%", max: "15%", value: "9,0", unit: "%/năm", progress: 40 },
-  { label: "Thời hạn vay", min: "5", max: "15", value: "7", unit: "năm", progress: 35 },
-  { label: "WACC (Tỷ lệ chiết khấu)", min: "5%", max: "20%", value: "10,0", unit: "%", progress: 33 },
-  { label: "Thuế suất TNDN", min: "10%", max: "30%", value: "20", unit: "%", progress: 50 }
-];
-
-const summaryRows = [
-  ["Dung lượng BESS", "1.000 kWh"],
-  ["Công suất BESS", "500 kW"],
-  ["CAPEX ước tính", "11,2 tỷ VNĐ"],
-  ["Suất đầu tư (CAPEX/kWh)", "11.200.000 VNĐ/kWh"],
-  ["Suất đầu tư (CAPEX/kW)", "22.400.000 VNĐ/kW"]
-];
-
-const savingRows = [
-  ["Tiết kiệm điện năng", "2,18 tỷ VNĐ/năm"],
-  ["Tiết kiệm công suất", "0,72 tỷ VNĐ/năm"],
-  ["Tổng tiết kiệm", "2,90 tỷ VNĐ/năm"]
-];
-
-const projectRows = [
-  ["NPV (10 năm)", "12,45 tỷ VNĐ", true],
-  ["IRR", "23,85%", true],
-  ["Payback", "5,1 năm", false]
-];
+const toneClasses: Record<Tone, string> = {
+  blue: "bg-blue-50 text-brand-blue",
+  green: "bg-green-50 text-brand-green",
+  amber: "bg-amber-50 text-amber-600",
+  purple: "bg-violet-50 text-violet-700",
+  slate: "bg-slate-100 text-brand-muted"
+};
 
 export function QuickSizingAssumptionContent() {
-  return (
-    <section className="mx-auto w-[min(1948px,calc(100%_-_72px))] pb-5 pt-3 max-xl:w-[min(1220px,calc(100%_-_42px))] max-sm:w-[min(100%_-_28px,640px)]">
-      <div className="flex items-center gap-3 text-sm font-semibold text-brand-muted">
-        <span>Trang chủ</span>
-        <ArrowRight size={14} />
-        <span>Quick Sizing</span>
-        <ArrowRight size={14} />
-        <span className="text-brand-navy">Giả định</span>
-      </div>
+  const [scenario, setScenario] = useState("Mặc định đề xuất");
+  const [changeCount, setChangeCount] = useState(0);
 
-      <div className="mt-3 grid grid-cols-[1fr_910px] items-end gap-8 max-2xl:grid-cols-[1fr_760px] max-xl:grid-cols-1">
+  const markChanged = () => setChangeCount((count) => count + 1);
+  const resetChanges = () => {
+    setScenario("Mặc định đề xuất");
+    setChangeCount(0);
+  };
+
+  const comparisonText = changeCount === 0 ? "Chưa thay đổi" : "Đã cập nhật";
+
+  return (
+    <section className="mx-auto w-[min(1560px,calc(100%_-_40px))] pb-7 pt-4 max-sm:w-[min(100%_-_28px,640px)]">
+      <Breadcrumb />
+
+      <div className="mt-3 grid grid-cols-[1fr_620px] items-end gap-6 max-xl:grid-cols-1">
         <div>
-          <h1 className="text-[34px] font-extrabold leading-tight text-brand-navy">Quick Sizing</h1>
-          <p className="mt-2 text-[14px] font-semibold leading-6 text-brand-muted">
-            Thiết lập các giả định để hệ thống ước tính nhanh hiệu quả kinh tế của hệ thống BESS.
+          <h1 className="text-[32px] font-extrabold leading-tight text-brand-navy">Quick Sizing</h1>
+          <p className="mt-1.5 max-w-[820px] text-[15px] font-medium leading-6 text-brand-muted">
+            Kiểm tra và điều chỉnh các giả định được hệ thống đề xuất từ thông tin ở Bước 1.
           </p>
         </div>
         <AssumptionStepper />
       </div>
 
-      <div className="mt-5 grid grid-cols-[1fr_520px] gap-5 max-xl:grid-cols-1">
-        <div className="grid gap-3">
-          <ScenarioSection />
-          <div className="grid grid-cols-[1fr_390px] gap-3 max-lg:grid-cols-1">
-            <TechnicalSection />
-            <InvestmentSection />
-          </div>
-          <div className="grid grid-cols-[1.12fr_0.88fr] gap-3 max-lg:grid-cols-1">
-            <TariffSection />
-            <FinanceSection />
-          </div>
+      <InheritedDataStrip />
+      <ScenarioSelector onChange={(title) => { setScenario(title); markChanged(); }} selected={scenario} />
+
+      <div className="mt-4 grid gap-4">
+        <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,0.36fr)_minmax(0,0.36fr)_minmax(330px,0.28fr)]">
+          <TechnicalCard onChange={markChanged} />
+          <CostCard onChange={markChanged} />
+          <SummaryColumn comparisonText={comparisonText} />
         </div>
-        <SummaryPanel />
+
+        <TariffFinanceCard onChange={markChanged} />
       </div>
 
-      <div className="mt-3 grid grid-cols-[150px_240px_1fr_280px] items-center gap-9 rounded-md border border-brand-line bg-white p-3 shadow-panel max-xl:grid-cols-1">
-        <a className={buttonVariants({ variant: "secondary", className: "h-11 border-brand-line text-brand-navy" })} href="/quick-sizing">
-          <ArrowLeft size={18} />
-          Quay lại
-        </a>
-        <button className={buttonVariants({ variant: "secondary", className: "h-11" })} type="button">
-          <RotateCcw size={18} />
-          Khôi phục mặc định
-        </button>
-        <div />
-        <a className={buttonVariants({ className: "h-11 bg-brand-blue text-white hover:bg-brand-blue/90" })} href="/quick-sizing/ket-qua">
-          <Zap size={18} />
-          Tính kết quả
-          <ArrowRight size={18} />
-        </a>
-      </div>
-
-      <div className="mt-5 flex items-center justify-center gap-3 text-sm font-semibold text-brand-muted">
-        <ShieldCheck size={20} />
-        <span>Các giả định trên sẽ được lưu lại vào dự án của bạn và có thể chỉnh sửa bất cứ lúc nào.</span>
-      </div>
+      <BottomActionBar changeCount={changeCount} onReset={resetChanges} />
     </section>
+  );
+}
+
+function Breadcrumb() {
+  return (
+    <div className="flex items-center gap-2.5 text-xs font-semibold text-brand-muted">
+      <span>Trang chủ</span>
+      <ArrowRight size={13} aria-hidden />
+      <span>Quick Sizing</span>
+      <ArrowRight size={13} aria-hidden />
+      <span className="text-brand-navy">Giả định</span>
+    </div>
   );
 }
 
@@ -150,217 +157,510 @@ function AssumptionStepper() {
   ];
 
   return (
-    <div className="grid h-[84px] grid-cols-[auto_1fr_auto_1fr_auto] items-center rounded-lg border border-brand-line bg-white px-6 shadow-panel">
+    <div className="grid h-[70px] grid-cols-[auto_1fr_auto_1fr_auto] items-center rounded-xl border border-brand-line bg-white px-5 shadow-panel">
       {steps.map((step, index) => (
         <Fragment key={step.number}>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <span
               className={cn(
-                "grid size-10 place-items-center rounded-full text-lg font-black",
+                "grid size-8 place-items-center rounded-full text-sm font-bold",
                 step.active && "bg-brand-blue text-white",
                 step.done && "border border-brand-green bg-green-50 text-brand-green",
                 !step.active && !step.done && "bg-slate-100 text-brand-navy/70"
               )}
             >
-              {step.done ? <Check size={22} /> : step.number}
+              {step.done ? <Check size={18} aria-hidden /> : step.number}
             </span>
             <span>
-              <strong className={cn("block text-sm", step.active ? "text-brand-blue" : "text-brand-muted")}>{step.title}</strong>
-              <small className={cn("block text-sm font-bold", step.active ? "text-brand-blue" : "text-brand-muted")}>{step.description}</small>
+              <strong className={cn("block text-xs font-bold", step.active ? "text-brand-blue" : "text-brand-muted")}>{step.title}</strong>
+              <small className={cn("block text-xs font-semibold", step.active ? "text-brand-blue" : "text-brand-muted")}>{step.description}</small>
             </span>
           </div>
-          {index < steps.length - 1 ? <span className="mx-9 border-t-2 border-dashed border-blue-200" /> : null}
+          {index < steps.length - 1 ? <span className="mx-4 border-t-2 border-dashed border-blue-200" /> : null}
         </Fragment>
       ))}
     </div>
   );
 }
 
-function SectionTitle({ children, number }: { children: React.ReactNode; number: number }) {
+function InheritedDataStrip() {
   return (
-    <h2 className="mb-3 flex items-center gap-2 text-[15px] font-extrabold text-brand-navy">
-      <span>{number}. {children}</span>
-      <Info size={14} className="text-brand-muted" />
-    </h2>
+    <Card className="mt-3 rounded-xl bg-white px-4 py-2.5 shadow-panel">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <strong className="mr-1 text-sm font-bold text-brand-navy">Dữ liệu kế thừa từ Bước 1</strong>
+          {inheritedChips.map((chip) => (
+            <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-semibold text-brand-navy" key={chip}>
+              {chip}
+            </span>
+          ))}
+        </div>
+        <Link className={buttonVariants({ variant: "secondary", className: "h-9 shrink-0 text-sm font-bold" })} href="/quick-sizing">
+          <Eye size={15} />
+          Xem lại Bước 1
+        </Link>
+      </div>
+    </Card>
   );
 }
 
-function ScenarioSection() {
+function ScenarioSelector({ onChange, selected }: { selected: string; onChange: (title: string) => void }) {
   return (
-    <Card className="bg-white p-3.5 shadow-none">
-      <SectionTitle number={1}>Kịch bản tính toán</SectionTitle>
-      <div className="grid grid-cols-4 gap-5 max-lg:grid-cols-2 max-sm:grid-cols-1">
-        {scenarioCards.map(({ description, icon: Icon, selected, title }) => (
-          <label
-            className={cn(
-              "flex h-[62px] cursor-pointer items-center gap-4 rounded-md border bg-white px-4",
-              selected ? "border-brand-blue shadow-[0_0_0_1px_rgba(7,91,234,0.12)]" : "border-brand-line"
-            )}
-            key={title}
-          >
-            <input className="sr-only" defaultChecked={selected} name="scenario" type="radio" />
-            <span className={cn("grid size-9 place-items-center rounded-full", selected ? "bg-brand-blue text-white" : "bg-white text-brand-muted")}>
-              <Icon size={22} />
-            </span>
-            <span>
-              <strong className="block text-sm text-brand-navy">{title}</strong>
-              <small className="block text-xs font-semibold text-brand-muted">{description}</small>
-            </span>
-          </label>
+    <Card className="mt-3 rounded-xl bg-white p-3 shadow-panel">
+      <div className="grid grid-cols-4 gap-3 max-lg:grid-cols-2 max-sm:grid-cols-1">
+        {scenarios.map(({ description, icon: Icon, title, tone }) => {
+          const isSelected = selected === title;
+
+          return (
+            <button
+              aria-pressed={isSelected}
+              className={cn(
+                "grid min-h-[70px] grid-cols-[34px_1fr_16px] items-center gap-2.5 rounded-xl border bg-white px-3 py-2 text-left transition hover:border-brand-blue hover:bg-blue-50/60",
+                isSelected && "border-brand-blue bg-blue-50 shadow-[0_0_0_1px_rgba(7,91,234,0.16)]"
+              )}
+              key={title}
+              onClick={() => onChange(title)}
+              type="button"
+            >
+              <span className={cn("grid size-8 place-items-center rounded-lg", isSelected ? "bg-brand-blue text-white" : toneClasses[tone as Tone])}>
+                <Icon size={18} />
+              </span>
+              <span>
+                <strong className="block text-sm font-bold text-brand-navy">{title}</strong>
+                <small className="mt-0.5 block text-xs font-medium leading-4 text-brand-muted">{description}</small>
+              </span>
+              <span className={cn("size-4 rounded-full border", isSelected ? "border-brand-blue bg-brand-blue shadow-[inset_0_0_0_3px_white]" : "border-slate-300")} />
+            </button>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
+function TechnicalCard({ onChange }: { onChange: () => void }) {
+  return (
+    <AssumptionCard className="h-full" title="Cấu hình kỹ thuật">
+      <div className="grid gap-3">
+        {technicalRows.map((row) => (
+          <SliderRow key={row.key} row={row} onChange={onChange} />
         ))}
       </div>
-      <p className="mt-3 flex items-center gap-2 text-xs font-semibold text-brand-muted">
-        <Info size={16} />
-        Kịch bản mặc định được sử dụng để ước tính nhanh khi chưa có dữ liệu phụ tải và PV thực tế.
-      </p>
-    </Card>
-  );
-}
-
-function TechnicalSection() {
-  return (
-    <Card className="bg-white p-3.5 shadow-none">
-      <SectionTitle number={2}>Giả định kỹ thuật</SectionTitle>
-      <div className="grid grid-cols-2 gap-x-8 gap-y-3 max-md:grid-cols-1">
-        <div className="grid gap-2">{technicalLeft.map((row) => <SliderRow key={row.label} {...row} />)}</div>
-        <div className="grid gap-2">{technicalRight.map((row) => <SliderRow key={row.label} {...row} />)}</div>
+      <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2.5 text-[13px] font-medium leading-5 text-brand-muted">
+        Các giá trị này được đề xuất từ dữ liệu đã nhập ở Bước 1 và có thể điều chỉnh.
       </div>
-    </Card>
+    </AssumptionCard>
   );
 }
 
-function InvestmentSection() {
+function CostCard({ onChange }: { onChange: () => void }) {
   return (
-    <Card className="bg-white p-3.5 shadow-none">
-      <SectionTitle number={3}>Chi phí đầu tư & vận hành</SectionTitle>
-      <div className="grid gap-1">
-        {investmentRows.map(([label, value, unit]) => (
-          <label className="grid gap-1" key={label}>
-            <span className="text-[11px] font-bold text-brand-navy">{label}</span>
-            <span className="grid grid-cols-[1fr_112px]">
-              <input className="h-7 rounded-l-md border border-r-0 border-brand-line px-3 text-sm font-semibold text-brand-navy outline-none focus:border-brand-blue" defaultValue={value} />
-              <span className="grid h-7 place-items-center rounded-r-md border border-brand-line bg-white text-[11px] font-bold text-brand-muted">{unit}</span>
-            </span>
-          </label>
-        ))}
-      </div>
-    </Card>
-  );
-}
-
-function TariffSection() {
-  return (
-    <Card className="bg-white p-3.5 shadow-none">
-      <SectionTitle number={4}>Giá điện & biểu giá</SectionTitle>
-      <div className="grid grid-cols-[210px_1fr] gap-7 max-md:grid-cols-1">
-        <div className="grid content-start gap-2.5">
-          <SelectField label="Nhóm khách hàng" value="Sản xuất" />
-          <SelectField label="Cấp điện áp" value="22kV" />
-          <SelectField label="Bộ giá điện áp dụng" value="Giá sản xuất 22kV - 2024" />
-        </div>
-        <div className="grid gap-2">
-          {tariffRows.map((row) => <SliderRow key={row.label} unit="" {...row} />)}
-          <div className="mt-1 flex items-center gap-5 text-sm font-semibold text-brand-navy">
-            <span>VAT</span>
-            <label className="flex items-center gap-2"><input className="size-4 accent-brand-blue" defaultChecked name="vat" type="radio" /> Chưa bao gồm</label>
-            <label className="flex items-center gap-2"><input className="size-4 accent-brand-blue" name="vat" type="radio" /> Đã bao gồm</label>
-          </div>
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-function FinanceSection() {
-  return (
-    <Card className="bg-white p-3.5 shadow-none">
-      <SectionTitle number={5}>Giả định tài chính</SectionTitle>
-      <div className="grid gap-2">
-        {financeRows.map((row) => <SliderRow key={row.label} {...row} />)}
-        <label className="grid grid-cols-[1fr_188px] items-center gap-4 text-xs font-bold text-brand-navy">
-          <span>Thời hạn phân tích</span>
-          <span className="relative">
-            <select className="h-7 w-full appearance-none rounded-md border border-brand-line bg-white px-8 text-sm font-semibold outline-none focus:border-brand-blue" defaultValue="10 năm">
-              <option>10 năm</option>
-              <option>15 năm</option>
-              <option>20 năm</option>
-            </select>
-            <CalendarDays className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-brand-blue" size={15} />
-            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-brand-muted" size={15} />
-          </span>
-        </label>
-      </div>
-    </Card>
-  );
-}
-
-function SliderRow({ label, max, min, progress, unit, value }: { label: string; min: string; max: string; value: string; unit?: string; progress: number }) {
-  return (
-    <label className="grid gap-1 text-[11px] font-bold text-brand-navy">
-      <span className="truncate">{label}</span>
-      <span className="grid grid-cols-[44px_1fr_46px_64px_auto] items-center gap-2">
-        <span className="text-brand-muted">{min}</span>
-        <input className="h-1.5 min-w-0 accent-brand-blue" defaultValue={progress} max={100} min={0} type="range" />
-        <span className="text-brand-muted">{max}</span>
-        <input className="h-7 rounded-md border border-brand-line px-2 text-center text-sm font-semibold outline-none focus:border-brand-blue" defaultValue={value} />
-        <span className="min-w-[38px] text-brand-muted">{unit}</span>
-      </span>
-    </label>
-  );
-}
-
-function SelectField({ label, value }: { label: string; value: string }) {
-  return (
-    <label className="grid gap-2">
-      <span className="text-[11px] font-bold text-brand-navy">{label}</span>
-      <span className="relative">
-        <select className="h-8 w-full appearance-none rounded-md border border-brand-line bg-white px-3 pr-8 text-sm font-semibold text-brand-navy outline-none focus:border-brand-blue" defaultValue={value}>
-          <option>{value}</option>
-        </select>
-        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-brand-muted" size={15} />
-      </span>
-    </label>
-  );
-}
-
-function SummaryPanel() {
-  return (
-    <Card className="bg-white p-4 shadow-none">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-lg font-extrabold text-brand-navy">
-          Tóm tắt & ảnh hưởng
-          <Info size={15} className="text-brand-muted" />
-        </h2>
-        <button className="h-8 rounded-md border border-brand-line px-4 text-sm font-bold text-brand-blue" type="button">Xem chi tiết</button>
-      </div>
-      <SummaryBox rows={summaryRows} />
-      <SummaryBox className="mt-3" title="Hiệu quả sơ bộ (năm đầu)" rows={savingRows} />
-      <SummaryBox className="mt-3" title="Hiệu quả dự án (10 năm)" rows={projectRows} />
-
-      <div className="mt-4 rounded-md border border-orange-200 bg-orange-50 p-3 text-sm font-semibold text-amber-800">
-        <h3 className="mb-2 flex items-center gap-2 font-extrabold">
-          <TriangleAlert size={18} />
-          Lưu ý
-        </h3>
-        <p>• RTE thấp hơn 85% có thể làm giảm hiệu quả kinh tế.</p>
-        <p className="mt-1">• Chu kỳ sạc/xả &gt; 1,5 lần/ngày có thể ảnh hưởng đến tuổi thọ pin.</p>
-      </div>
-    </Card>
-  );
-}
-
-function SummaryBox({ className, rows, title }: { className?: string; rows: (string | boolean)[][]; title?: string }) {
-  return (
-    <div className={cn("rounded-md border border-brand-line p-3.5", className)}>
-      {title ? <h3 className="mb-3 text-sm font-extrabold text-brand-navy">{title}</h3> : null}
+    <AssumptionCard className="flex h-full flex-col" title="Chi phí đầu tư & vận hành">
       <div className="grid gap-2.5">
-        {rows.map(([label, value, positive]) => (
-          <div className="flex items-center justify-between gap-4 text-sm font-semibold text-brand-muted" key={String(label)}>
-            <span>{label}</span>
-            <strong className={positive ? "text-brand-green" : "text-brand-navy"}>{value}</strong>
+        {costRows.map((row) => (
+          <NumericInputRow key={row.label} onChange={onChange} {...row} />
+        ))}
+      </div>
+      <div className="mt-3 rounded-xl bg-green-50 px-4 py-3 text-sm font-bold text-brand-green">
+        <span className="block">CAPEX tạm tính</span>
+        <span className="mt-1 block text-[26px] leading-none">11,2 tỷ VND</span>
+      </div>
+    </AssumptionCard>
+  );
+}
+
+function TariffFinanceCard({ onChange }: { onChange: () => void }) {
+  const tariffPriceRows = tariffRows.slice(0, 4);
+  const escalationRow = tariffRows[4];
+  const financeSliderRows = financeRows.filter((row) => ["debt", "interest", "wacc"].includes(row.key));
+
+  return (
+    <AssumptionCard title="Biểu giá & giả định tài chính">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(360px,1fr)]">
+        <section className="min-w-0 rounded-xl border border-blue-100 bg-slate-50/55 p-4">
+          <h3 className="text-[17px] font-bold text-brand-navy">Biểu giá</h3>
+
+          <div className="mt-3">
+            <div className="grid grid-cols-[1fr_1fr_1.45fr] gap-3 max-2xl:grid-cols-2 max-sm:grid-cols-1">
+              <SelectField label="Nhóm khách hàng" value="Sản xuất" />
+              <SelectField label="Cấp điện áp" value="22 kV" />
+              <SelectField label="Bộ giá áp dụng" value="Giá sản xuất 22 kV - 2026" />
+            </div>
           </div>
+
+          <TariffNumberTable onChange={onChange} rows={tariffPriceRows} />
+
+          <div className="mt-4 grid items-end gap-4 border-t border-blue-100 pt-4 lg:grid-cols-[minmax(0,1fr)_270px]">
+            <WideSliderRow row={escalationRow} onChange={onChange} />
+            <VatSegmentedControl onChange={onChange} />
+          </div>
+        </section>
+
+        <section className="min-w-0 rounded-xl border border-blue-100 bg-slate-50/55 p-4">
+          <h3 className="text-[17px] font-bold text-brand-navy">Tài chính</h3>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+            {financeSliderRows.map((row) => (
+              <WideSliderRow compact key={row.key} row={row} onChange={onChange} />
+            ))}
+            <StaticNumberField label="Thời hạn vay" onChange={onChange} unit="năm" value="7" />
+            <StaticNumberField label="Thuế TNDN" onChange={onChange} unit="%" value="20" />
+            <SelectField label="Thời hạn phân tích" value="10 năm" options={["5 năm", "10 năm", "15 năm"]} />
+          </div>
+        </section>
+      </div>
+    </AssumptionCard>
+  );
+}
+
+function SummaryColumn({ comparisonText }: { comparisonText: string }) {
+  return (
+    <aside className="h-full">
+      <Card className="h-full rounded-xl bg-white p-4 shadow-panel">
+        <div className="flex items-start justify-between gap-3">
+          <h2 className="text-[20px] font-bold leading-tight text-brand-navy">Tóm tắt & ảnh hưởng</h2>
+          <span className="shrink-0 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-brand-blue">Kết quả tạm tính</span>
+        </div>
+
+        <SummarySection title="Cấu hình">
+          <SummaryRow label="Dung lượng" value="1.000 kWh" />
+          <SummaryRow label="Công suất" value="500 kW" />
+          <SummaryRow label="Thời lượng" value="2,0 giờ" />
+          <SummaryRow label="Năng lượng khả dụng" value="900 kWh" />
+          <SummaryRow label="CAPEX" value="11,2 tỷ VND" />
+        </SummarySection>
+
+        <SummarySection title="Hiệu quả tạm tính">
+          <div className="grid grid-cols-3 gap-2">
+            <KpiBox label="Tiết kiệm" value="2,90 tỷ/năm" />
+            <KpiBox label="Payback" value="5,1 năm" />
+            <KpiBox label="NPV 10 năm" value="12,45 tỷ" />
+          </div>
+        </SummarySection>
+
+        <SummarySection title="Thay đổi so với mặc định">
+          <SummaryRow label="CAPEX" value={comparisonText} />
+          <SummaryRow label="NPV" value={comparisonText} />
+          <SummaryRow label="Payback" value={comparisonText} />
+        </SummarySection>
+
+        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3">
+          <h3 className="flex items-center gap-2 text-base font-bold text-amber-800">
+            <TriangleAlert size={17} />
+            Lưu ý
+          </h3>
+          <ul className="mt-2 grid gap-1.5 text-[13px] font-medium leading-5 text-amber-800">
+            <li>• Chu kỳ trên 1,5 lần/ngày có thể ảnh hưởng tuổi thọ pin.</li>
+            <li>• RTE dưới 85% có thể làm giảm hiệu quả kinh tế.</li>
+          </ul>
+        </div>
+      </Card>
+    </aside>
+  );
+}
+
+function SummarySection({ children, title }: { children: ReactNode; title: string }) {
+  return (
+    <section className="mt-4 border-t border-blue-50 pt-3">
+      <h3 className="mb-2 text-sm font-bold uppercase tracking-wide text-brand-navy">{title}</h3>
+      <div className="grid gap-2">{children}</div>
+    </section>
+  );
+}
+
+function AssumptionCard({ children, className, title }: { children: ReactNode; className?: string; title: string }) {
+  return (
+    <Card className={cn("rounded-xl bg-white p-4 shadow-panel", className)}>
+      <h2 className="mb-3 flex items-center gap-2 text-[18px] font-bold leading-tight text-brand-navy">
+        {title}
+        <Info size={15} className="text-brand-muted" aria-hidden />
+      </h2>
+      {children}
+    </Card>
+  );
+}
+
+function TariffNumberTable({ onChange, rows }: { onChange: () => void; rows: AssumptionRow[] }) {
+  return (
+    <div className="mt-4 overflow-hidden rounded-xl border border-blue-100 bg-white">
+      <div className="grid grid-cols-[1.1fr_150px_150px_1fr] bg-blue-50/70 px-3 py-2 text-xs font-bold uppercase text-brand-muted max-lg:hidden">
+        <span>Thành phần giá</span>
+        <span>Giá trị</span>
+        <span>Đơn vị</span>
+        <span>Nguồn</span>
+      </div>
+      <div className="divide-y divide-blue-50">
+        {rows.map((row) => (
+          <TariffNumberRow key={row.key} onChange={onChange} row={row} />
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-blue-100 bg-slate-50/80 px-3 py-2.5">
+        <span className="inline-flex items-center gap-2 text-xs font-bold text-brand-muted">
+          <LockKeyhole size={14} className="text-brand-blue" />
+          Đồng bộ theo bộ giá điện
+        </span>
+        <button
+          className="h-8 rounded-lg border border-brand-blue bg-white px-3 text-xs font-bold text-brand-blue transition hover:bg-blue-50"
+          onClick={onChange}
+          type="button"
+        >
+          Cho phép chỉnh thủ công
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function TariffNumberRow({ onChange, row }: { onChange: () => void; row: AssumptionRow }) {
+  return (
+    <label className="grid items-center gap-2 px-3 py-2.5 text-sm lg:grid-cols-[1.1fr_150px_150px_1fr]">
+      <span className="font-semibold text-brand-navy">{row.label}</span>
+      <input
+        className="h-9 rounded-lg border border-brand-line bg-white px-3 text-right text-sm font-semibold tabular-nums text-brand-navy outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/15"
+        defaultValue={formatNumber(row.value)}
+        onChange={onChange}
+      />
+      <span className="text-xs font-bold text-brand-muted">{row.unit}</span>
+      <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-bold text-brand-green">Theo bộ giá áp dụng</span>
+    </label>
+  );
+}
+
+function StaticNumberField({ label, onChange, unit, value }: { label: string; onChange: () => void; unit: string; value: string }) {
+  return (
+    <label className="grid gap-1.5 rounded-lg border border-transparent p-2 transition focus-within:border-brand-blue/40 focus-within:bg-blue-50/40">
+      <span className="text-[14px] font-semibold text-brand-navy">{label}</span>
+      <span className="grid grid-cols-[1fr_74px]">
+        <input
+          className="h-10 rounded-l-lg border border-r-0 border-brand-line bg-white px-2.5 text-right text-sm font-semibold tabular-nums text-brand-navy outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/15"
+          defaultValue={value}
+          onChange={onChange}
+        />
+        <span className="grid h-10 place-items-center rounded-r-lg border border-brand-line bg-white text-xs font-bold text-brand-muted">{unit}</span>
+      </span>
+    </label>
+  );
+}
+
+function WideSliderRow({
+  compact,
+  emphasis,
+  onChange,
+  row
+}: {
+  compact?: boolean;
+  emphasis?: boolean;
+  onChange: () => void;
+  row: AssumptionRow;
+}) {
+  const [value, setValue] = useState(row.value);
+  const percentage = Math.min(100, Math.max(0, ((value - row.min) / (row.max - row.min)) * 100));
+  const sliderBackground = `linear-gradient(90deg, #075BEA 0%, #075BEA ${percentage}%, #E5ECF7 ${percentage}%, #E5ECF7 100%)`;
+
+  const handleChange = (nextValue: number) => {
+    if (Number.isNaN(nextValue)) {
+      return;
+    }
+
+    const boundedValue = Math.min(row.max, Math.max(row.min, nextValue));
+    setValue(boundedValue);
+    onChange();
+  };
+
+  return (
+    <label
+      className={cn(
+        "grid gap-2 rounded-lg border border-transparent p-2 transition focus-within:border-brand-blue/40 focus-within:bg-blue-50/40",
+        emphasis && "border-blue-100 bg-blue-50/50"
+      )}
+    >
+      <span className="flex items-center justify-between gap-3">
+        <span className="text-[14px] font-semibold text-brand-navy">{row.label}</span>
+        <span className="hidden text-xs font-semibold text-brand-muted sm:inline">
+          {formatNumber(row.min)} - {formatNumber(row.max)}
+        </span>
+      </span>
+      <span className={cn("grid items-center gap-3", compact ? "grid-cols-[minmax(160px,1fr)_82px_74px]" : "grid-cols-[minmax(260px,1fr)_108px_112px]")}>
+        <input
+          aria-label={row.label}
+          className={cn(
+            "h-3 cursor-pointer appearance-none rounded-full outline-none [&::-moz-range-thumb]:size-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-[3px] [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:bg-brand-blue [&::-moz-range-thumb]:shadow-md [&::-webkit-slider-thumb]:size-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-[3px] [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-brand-blue [&::-webkit-slider-thumb]:shadow-md",
+            compact ? "min-w-[160px]" : "min-w-[220px]"
+          )}
+          max={row.max}
+          min={row.min}
+          onChange={(event) => handleChange(Number(event.target.value))}
+          step={row.step ?? 1}
+          style={{ background: sliderBackground }}
+          type="range"
+          value={value}
+        />
+        <input
+          className="h-10 rounded-lg border border-brand-line bg-white px-2.5 text-right text-sm font-semibold tabular-nums text-brand-navy outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/15"
+          onChange={(event) => handleChange(parseLocalizedNumber(event.target.value))}
+          value={formatNumber(value)}
+        />
+        <span className="text-xs font-bold leading-4 text-brand-muted">{row.unit}</span>
+      </span>
+    </label>
+  );
+}
+
+function VatSegmentedControl({ onChange }: { onChange: () => void }) {
+  const [value, setValue] = useState<"excluded" | "included">("excluded");
+  const selectVat = (nextValue: "excluded" | "included") => {
+    setValue(nextValue);
+    onChange();
+  };
+
+  return (
+    <div className="grid gap-2 rounded-lg bg-blue-50/60 p-2">
+      <span className="text-[14px] font-semibold text-brand-navy">VAT</span>
+      <div className="grid grid-cols-2 rounded-lg border border-blue-100 bg-white p-1">
+        {[
+          { id: "excluded", label: "Chưa bao gồm" },
+          { id: "included", label: "Đã bao gồm" }
+        ].map((option) => (
+          <button
+            className={cn(
+              "h-9 rounded-md text-sm font-bold transition",
+              value === option.id ? "bg-brand-blue text-white shadow-sm" : "text-brand-muted hover:bg-blue-50 hover:text-brand-blue"
+            )}
+            key={option.id}
+            onClick={() => selectVat(option.id as "excluded" | "included")}
+            type="button"
+          >
+            {option.label}
+          </button>
         ))}
       </div>
     </div>
   );
+}
+
+function SliderRow({ compact, onChange, row }: { compact?: boolean; onChange: () => void; row: AssumptionRow }) {
+  const [value, setValue] = useState(row.value);
+  const source = useMemo(() => (value === row.value ? row.source : "Đã chỉnh sửa"), [row.source, row.value, value]);
+  const percentage = Math.min(100, Math.max(0, ((value - row.min) / (row.max - row.min)) * 100));
+  const sliderBackground = `linear-gradient(90deg, #075BEA 0%, #075BEA ${percentage}%, #E5ECF7 ${percentage}%, #E5ECF7 100%)`;
+
+  const handleChange = (nextValue: number) => {
+    setValue(nextValue);
+    onChange();
+  };
+
+  return (
+    <label className="grid gap-1.5">
+      <span className="flex items-center justify-between gap-3">
+        <span className="text-[14px] font-semibold text-brand-navy">{row.label}</span>
+        {source ? <SourceBadge source={source} /> : null}
+      </span>
+      <span className={cn("grid items-center gap-2", compact ? "grid-cols-[1fr_78px_88px]" : "grid-cols-[1fr_86px_94px]")}>
+        <input
+          className="h-2.5 min-w-[150px] cursor-pointer appearance-none rounded-full outline-none [&::-moz-range-thumb]:size-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:bg-brand-blue [&::-moz-range-thumb]:shadow-md [&::-webkit-slider-thumb]:size-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-brand-blue [&::-webkit-slider-thumb]:shadow-md"
+          max={row.max}
+          min={row.min}
+          onChange={(event) => handleChange(Number(event.target.value))}
+          step={row.step ?? 1}
+          style={{ background: sliderBackground }}
+          type="range"
+          value={value}
+        />
+        <input
+          className="h-9 rounded-lg border border-brand-line px-2 text-right text-sm font-medium tabular-nums text-brand-navy outline-none focus:border-brand-blue"
+          onChange={(event) => handleChange(parseLocalizedNumber(event.target.value) || row.min)}
+          value={formatNumber(value)}
+        />
+        <span className="text-xs font-bold text-brand-muted">{row.unit}</span>
+      </span>
+    </label>
+  );
+}
+
+function NumericInputRow({ label, onChange, unit, value }: { label: string; onChange: () => void; unit: string; value: string }) {
+  return (
+    <label className="grid gap-1">
+      <span className="text-[14px] font-semibold text-brand-navy">{label}</span>
+      <span className="grid grid-cols-[1fr_116px]">
+        <input
+          className="h-9 rounded-l-lg border border-r-0 border-brand-line px-3 text-sm font-medium tabular-nums text-brand-navy outline-none focus:border-brand-blue"
+          defaultValue={value}
+          onChange={onChange}
+        />
+        <span className="grid h-9 place-items-center rounded-r-lg border border-brand-line bg-slate-50 text-xs font-bold text-brand-muted">{unit}</span>
+      </span>
+    </label>
+  );
+}
+
+function SelectField({ label, options, value }: { label: string; options?: string[]; value: string }) {
+  return (
+    <label className="grid gap-1">
+      <span className="text-[13px] font-semibold text-brand-navy">{label}</span>
+      <span className="relative">
+        <select
+          className="h-9 w-full appearance-none rounded-lg border border-brand-line bg-white px-3 pr-8 text-sm font-medium text-brand-navy outline-none focus:border-brand-blue"
+          defaultValue={value}
+        >
+          {(options ?? [value]).map((option) => <option key={option}>{option}</option>)}
+        </select>
+        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-brand-muted" size={15} aria-hidden />
+      </span>
+    </label>
+  );
+}
+
+function SourceBadge({ source }: { source: NonNullable<AssumptionRow["source"]> }) {
+  const tone = source === "Đã chỉnh sửa" ? "amber" : source === "Tự động đề xuất" ? "blue" : "slate";
+  return <small className={cn("rounded-full px-2 py-0.5 text-[11px] font-bold", toneClasses[tone])}>{source}</small>;
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 text-sm font-medium text-brand-muted">
+      <span>{label}</span>
+      <strong className="text-right font-bold tabular-nums text-brand-navy">{value}</strong>
+    </div>
+  );
+}
+
+function KpiBox({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="rounded-lg border border-blue-100 bg-blue-50 p-2 text-center">
+      <small className="block text-xs font-semibold text-brand-muted">{label}</small>
+      <strong className="mt-1 block text-[15px] font-bold leading-tight tabular-nums text-brand-navy">{value}</strong>
+    </span>
+  );
+}
+
+function BottomActionBar({ changeCount, onReset }: { changeCount: number; onReset: () => void }) {
+  return (
+    <div className="mt-4 rounded-xl border border-brand-line bg-white px-4 py-3 shadow-panel">
+      <div className="grid grid-cols-[auto_auto_1fr_auto] items-center gap-3 max-lg:grid-cols-1">
+        <Link className={buttonVariants({ variant: "secondary", className: "h-11 border-brand-line text-brand-navy" })} href="/quick-sizing">
+          <ArrowLeft size={17} />
+          Quay lại
+        </Link>
+        <button className={buttonVariants({ variant: "secondary", className: "h-11" })} onClick={onReset} type="button">
+          <RotateCcw size={17} />
+          Khôi phục mặc định
+        </button>
+        <span className="text-center text-sm font-bold text-brand-muted">{changeCount} thay đổi chưa áp dụng</span>
+        <Link className={buttonVariants({ className: "h-11 bg-brand-blue px-7 text-[15px] font-bold text-white hover:bg-brand-blue/90" })} href="/quick-sizing/ket-qua">
+          <Zap size={18} />
+          Tính kết quả
+          <ArrowRight size={18} />
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function formatNumber(value: number) {
+  return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 1 }).format(value);
+}
+
+function parseLocalizedNumber(value: string) {
+  const normalizedValue = value.replace(/\./g, "").replace(",", ".");
+  const parsedValue = Number(normalizedValue);
+  return Number.isNaN(parsedValue) ? 0 : parsedValue;
 }

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   CheckCircle2,
@@ -56,7 +56,7 @@ export function UploadPanel({ defaultFile, iconTone, required, sampleName, title
 
   return (
     <div className="rounded-md border border-brand-line bg-white p-3.5">
-      <h3 className="flex items-center gap-3 text-base font-extrabold text-brand-navy">
+      <h3 className="flex items-center gap-3 text-base font-bold text-brand-navy">
         <LineChart className={iconTone === "blue" ? "text-brand-blue" : "text-amber-500"} size={25} />
         {title} {required ? <span className="text-red-500">*</span> : null}
       </h3>

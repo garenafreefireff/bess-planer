@@ -1,13 +1,13 @@
 import { PublicFooter } from "@/components/layout/public-footer";
 import { PublicHeader } from "@/components/layout/public-header";
-import { QuickSizingResultContent } from "./quick-sizing-result-content";
+import { QuickSizingResultFlow } from "./quick-sizing-result-flow";
 
 export function QuickSizingResultPage() {
   return (
     <>
       <PublicHeader activeItem="Quick Sizing" />
       <main>
-        <QuickSizingResultContent />
+        <QuickSizingResultFlow />
       </main>
       <PublicFooter />
     </>

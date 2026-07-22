@@ -1,4 +1,4 @@
-import { ArrowRight } from "lucide-react";
+﻿import { ArrowRight } from "lucide-react";
 import type { ReactNode } from "react";
 import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -16,7 +16,7 @@ export function ComparisonMatrix() {
   return (
     <section className="site-container grid grid-cols-[380px_1fr_1.22fr] gap-8 max-xl:grid-cols-1">
       <Card className="overflow-hidden bg-white shadow-none">
-        <h2 className="border-b border-brand-line px-8 py-4 text-center text-base font-extrabold text-brand-navy">Tiêu chí so sánh</h2>
+        <h2 className="border-b border-brand-line px-8 py-4 text-center text-base font-bold text-brand-navy">Tiêu chí so sánh</h2>
         <div className="divide-y divide-brand-line">
           {comparisonRows.map(({ criterion, icon: Icon }) => (
             <div className="grid h-[36px] grid-cols-[46px_1fr] items-center px-8 text-[13px] font-semibold text-brand-navy" key={criterion}>
@@ -42,7 +42,7 @@ export function ComparisonMatrix() {
         icon={<PlannerIcon size={36} />}
         rows={comparisonRows.map((row) => row.planner)}
         tone="green"
-        cta="Đăng nhập BESS Planner"
+        cta="Mở BESS Planner"
       />
     </section>
   );
@@ -64,13 +64,14 @@ function ToolColumn({
   tone: "blue" | "green";
 }) {
   const isGreen = tone === "green";
+  const href = isGreen ? "/customer-portal/du-an-cua-toi" : "/quick-sizing";
 
   return (
     <Card className="overflow-hidden bg-white px-6 pb-3.5 pt-4 shadow-none">
       <div className="flex items-center justify-center gap-4 border-b border-dashed border-slate-300 pb-3">
         <span className={isGreen ? "text-brand-green" : "text-brand-blue"}>{icon}</span>
-        <h2 className={cn("text-[26px] font-extrabold", isGreen ? "text-brand-green" : "text-brand-navy")}>{title}</h2>
-        <span className={cn("ml-auto rounded-full px-3 py-1 text-xs font-extrabold", isGreen ? "bg-green-50 text-brand-green" : "bg-blue-50 text-brand-blue")}>
+        <h2 className={cn("text-[26px] font-bold", isGreen ? "text-brand-green" : "text-brand-navy")}>{title}</h2>
+        <span className={cn("ml-auto rounded-full px-3 py-1 text-xs font-bold", isGreen ? "bg-green-50 text-brand-green" : "bg-blue-50 text-brand-blue")}>
           {badge}
         </span>
       </div>
@@ -86,7 +87,7 @@ function ToolColumn({
           );
         })}
       </div>
-      <a className={buttonVariants({ variant: isGreen ? "green" : "default", className: "mt-3.5 h-11 w-full text-base" })} href="#">
+      <a className={buttonVariants({ variant: isGreen ? "green" : "default", className: "mt-3.5 h-11 w-full text-base" })} href={href}>
         {cta}
         <ArrowRight size={22} />
       </a>

@@ -19,6 +19,7 @@ import {
   Headphones,
   Home,
   LayoutGrid,
+  LogOut,
   Menu,
   MoreVertical,
   Settings,
@@ -27,6 +28,9 @@ import {
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Card } from "@/components/ui/card";
+import { authApi } from "@/features/auth/api/auth.api";
+import { PortalAuthGate } from "@/features/auth/components/portal-auth-gate";
+import { useAuthStore } from "@/features/auth/store/auth.store";
 import { cn } from "@/lib/utils";
 
 const sidebarGroups = [
@@ -309,7 +313,8 @@ export function PortalAuthenticatedLayout({ activeItem = "Tổng quan", children
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <main className="min-h-screen bg-white text-brand-navy">
+    <PortalAuthGate>
+      <main className="min-h-screen bg-white text-brand-navy">
       <div className="grid min-h-screen grid-cols-[264px_1fr] max-lg:grid-cols-1">
         <PortalSidebar activeItem={activeItem} />
         {mobileMenuOpen ? (
@@ -328,7 +333,8 @@ export function PortalAuthenticatedLayout({ activeItem = "Tổng quan", children
           <PortalFooter />
         </section>
       </div>
-    </main>
+      </main>
+    </PortalAuthGate>
   );
 }
 
@@ -403,6 +409,25 @@ function PortalSidebar({ activeItem, mobile = false, onNavigate }: { activeItem:
 }
 
 function PortalTopbar({ onOpenMenu }: { onOpenMenu: () => void }) {
+  const user = useAuthStore((state) => state.user);
+  const refreshToken = useAuthStore((state) => state.refreshToken);
+  const clearSession = useAuthStore((state) => state.clearSession);
+  const displayName = user?.representative_name ?? user?.email ?? "Portal user";
+  const companyName = user?.company_name ?? "BESS Planner";
+  const initials = getUserInitials(displayName);
+
+  const logout = async () => {
+    if (refreshToken) {
+      try {
+        await authApi.logout(refreshToken);
+      } catch {
+        // Clear the browser session even if the backend session has already expired.
+      }
+    }
+
+    clearSession();
+  };
+
   return (
     <header className="border-b border-brand-line bg-white">
       <div className="flex min-h-[74px] w-full items-center justify-between gap-5 px-8 max-sm:px-4">
@@ -416,7 +441,7 @@ function PortalTopbar({ onOpenMenu }: { onOpenMenu: () => void }) {
             </span>
             <span>
               <small className="block text-xs font-medium text-brand-muted">Workspace hiện tại</small>
-              <strong className="text-sm font-bold text-brand-navy">Solaris Energy Vietnam</strong>
+              <strong className="text-sm font-bold text-brand-navy">{companyName}</strong>
             </span>
           </span>
           <ChevronDown size={18} className="text-brand-muted" />
@@ -431,17 +456,33 @@ function PortalTopbar({ onOpenMenu }: { onOpenMenu: () => void }) {
             <CircleHelp size={23} />
           </button>
           <button className="flex items-center gap-3" type="button">
-            <span className="grid size-11 place-items-center rounded-full bg-brand-blue text-sm font-bold text-white">NT</span>
+            <span className="grid size-11 place-items-center rounded-full bg-brand-blue text-sm font-bold text-white">{initials}</span>
             <span className="text-left leading-tight">
-              <strong className="block text-sm font-bold text-brand-navy">Nguyễn Tuấn</strong>
-              <small className="font-medium text-brand-muted">Quản trị viên</small>
+              <strong className="block text-sm font-bold text-brand-navy">{displayName}</strong>
+              <small className="font-medium text-brand-muted">{companyName}</small>
             </span>
             <ChevronDown size={18} className="text-brand-muted" />
+          </button>
+          <button className="grid size-10 place-items-center rounded-lg border border-brand-line text-brand-muted hover:bg-blue-50 hover:text-brand-blue" onClick={() => void logout()} type="button" aria-label="Đăng xuất">
+            <LogOut size={18} />
           </button>
         </div>
       </div>
     </header>
   );
+}
+
+function getUserInitials(value: string) {
+  const words = value.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) {
+    return "U";
+  }
+
+  if (words.length === 1) {
+    return words[0].slice(0, 2).toUpperCase();
+  }
+
+  return `${words[0][0]}${words[words.length - 1][0]}`.toUpperCase();
 }
 
 function ApplicationsCard() {

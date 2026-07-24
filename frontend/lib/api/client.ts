@@ -1,7 +1,13 @@
 import axios from "axios";
 
+const apiBaseURL = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+if (!apiBaseURL) {
+  throw new Error("NEXT_PUBLIC_API_BASE_URL is not configured. Add it to frontend/.env.local.");
+}
+
 const apiClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api",
+  baseURL: apiBaseURL,
   timeout: 30000,
   headers: {
     "Content-Type": "application/json"

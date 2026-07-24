@@ -12,7 +12,7 @@ import {
   Sparkles,
   Trash2
 } from "lucide-react";
-import { Fragment, useEffect, useMemo, useRef } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Controller, FieldErrors, Path, useForm, type UseFormRegisterReturn } from "react-hook-form";
 import type { ReactNode } from "react";
@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { quickSizingApi, readQuickSizingApiError } from "../api/quick-sizing.api";
 import {
   backupDurationOptions,
   bessObjectiveOptions,
@@ -56,6 +57,7 @@ export function QuickSizingContent() {
   const setBasicInfo = useQuickSizingStore((state) => state.setBasicInfo);
   const clearFlow = useQuickSizingStore((state) => state.clearFlow);
   const hasRestoredDraft = useRef(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const {
     clearErrors,
     control,
@@ -128,18 +130,30 @@ export function QuickSizingContent() {
     return () => subscription.unsubscribe();
   }, [watch]);
 
-  const submitStep = (formValues: QuickSizingStep1FormValues) => {
+  const submitStep = async (formValues: QuickSizingStep1FormValues) => {
     const payload = sanitizeQuickSizingStep1Payload(formValues);
-    setBasicInfo(formValues);
-    window.localStorage.setItem(
-      QUICK_SIZING_DRAFT_KEY,
-      JSON.stringify({
-        savedAt: Date.now(),
-        values: formValues,
-        payload
-      })
-    );
-    router.push("/quick-sizing/gia-dinh");
+
+    setIsSubmitting(true);
+    try {
+      const analysisRun = await quickSizingApi.createQuickSizingRun(payload);
+      setBasicInfo(formValues, analysisRun);
+      window.localStorage.setItem(
+        QUICK_SIZING_DRAFT_KEY,
+        JSON.stringify({
+          savedAt: Date.now(),
+          values: formValues,
+          payload,
+          analysisRunId: analysisRun.id,
+          engineVersion: analysisRun.engine_version
+        })
+      );
+      toast.success("Đã tạo bộ giả định từ backend.");
+      router.push("/quick-sizing/gia-dinh");
+    } catch (error) {
+      toast.error(readQuickSizingApiError(error));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleInvalidSubmit = (formErrors: FieldErrors<QuickSizingStep1FormValues>) => {
@@ -234,7 +248,7 @@ export function QuickSizingContent() {
           />
           <BudgetSection control={control} errors={errors} register={register} values={values} />
 
-          <QuickSizingActionBar applySampleData={applySampleData} clearForm={clearForm} />
+          <QuickSizingActionBar applySampleData={applySampleData} clearForm={clearForm} isSubmitting={isSubmitting} />
         </Card>
 
         <QuickSizingSummaryPanel values={values} />
@@ -675,7 +689,15 @@ function QuickSizingSummaryPanel({ values }: { values: QuickSizingStep1FormValue
   );
 }
 
-function QuickSizingActionBar({ applySampleData, clearForm }: { applySampleData: () => void; clearForm: () => void }) {
+function QuickSizingActionBar({
+  applySampleData,
+  clearForm,
+  isSubmitting
+}: {
+  applySampleData: () => void;
+  clearForm: () => void;
+  isSubmitting: boolean;
+}) {
   return (
     <div className="sticky bottom-0 -mx-5 mt-5 grid grid-cols-[auto_auto_1fr_auto] items-center gap-3 border-t border-brand-line bg-white/95 px-5 py-3 backdrop-blur max-md:grid-cols-1">
       <button className={buttonVariants({ variant: "secondary", className: "h-10 border-brand-line text-brand-navy" })} onClick={clearForm} type="button">
@@ -687,9 +709,13 @@ function QuickSizingActionBar({ applySampleData, clearForm }: { applySampleData:
         Dùng dữ liệu mẫu
       </button>
       <span />
-      <button className={buttonVariants({ className: "h-10 bg-brand-blue text-white hover:bg-brand-blue/90" })} type="submit">
+      <button
+        className={buttonVariants({ className: "h-10 bg-brand-blue text-white hover:bg-brand-blue/90 disabled:cursor-not-allowed disabled:opacity-60" })}
+        disabled={isSubmitting}
+        type="submit"
+      >
         <Sparkles size={17} />
-        Tiếp tục đến giả định
+        {isSubmitting ? "Đang tính từ backend..." : "Tiếp tục đến giả định"}
         <ArrowRight size={17} />
       </button>
     </div>

@@ -62,9 +62,9 @@ const technicalRows: AssumptionRow[] = [
 ];
 
 const costRows = [
-  { label: "Chi phí pin", value: "6.000.000", unit: "VND/kWh" },
-  { label: "Chi phí PCS", value: "2.000.000", unit: "VND/kW" },
-  { label: "Chi phí EPC cố định", value: "1.500.000.000", unit: "VND" },
+  { label: "Chi phí hệ thống pin DC", value: "3.000.000", unit: "VND/kWh danh định" },
+  { label: "Chi phí thiết bị PCS", value: "1.500.000", unit: "VND/kW AC" },
+  { label: "EPC & triển khai tổng hợp", value: "Theo all-in rate", unit: "% Equipment" },
   { label: "O&M hằng năm", value: "2,0", unit: "% CAPEX/năm" },
   { label: "Tăng O&M", value: "2,0", unit: "%/năm" }
 ];

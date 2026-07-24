@@ -119,6 +119,43 @@ class ProjectRepository:
         normalized = _normalize_document_id(document)
         return ProjectDocument.model_validate(normalized) if normalized else None
 
+    async def add_dataset_id_for_user(
+        self,
+        project_id: str,
+        user_id: str,
+        dataset_id: str,
+    ) -> ProjectDocument | None:
+        document = await self.collection.find_one_and_update(
+            {
+                "_id": _object_id(project_id),
+                "user_id": _object_id(user_id),
+            },
+            {
+                "$addToSet": {"dataset_ids": _object_id(dataset_id)},
+                "$set": {"updated_at": utc_now()},
+            },
+            return_document=ReturnDocument.AFTER,
+        )
+        normalized = _normalize_document_id(document)
+        return ProjectDocument.model_validate(normalized) if normalized else None
+
+    async def remove_dataset_id_for_user(
+        self,
+        project_id: str,
+        user_id: str,
+        dataset_id: str,
+    ) -> None:
+        await self.collection.update_one(
+            {
+                "_id": _object_id(project_id),
+                "user_id": _object_id(user_id),
+            },
+            {
+                "$pull": {"dataset_ids": _object_id(dataset_id)},
+                "$set": {"updated_at": utc_now()},
+            },
+        )
+
     async def delete_by_id_for_user(self, project_id: str, user_id: str) -> bool:
         result = await self.collection.delete_one(
             {

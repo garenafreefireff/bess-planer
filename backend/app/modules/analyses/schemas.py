@@ -264,6 +264,10 @@ class QuickSizingStep1Request(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class BessPlannerAnalysisRequest(BaseModel):
+    project_id: ObjectIdStr
+
+
 class AnalysisRunResponse(BaseModel):
     id: str | None = None
     user_id: str | None = None

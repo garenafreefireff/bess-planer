@@ -1,5 +1,8 @@
 from app.core.exceptions import NotFoundError
+from app.dependencies.storage import LocalStorageClient
 from app.models.project import ProjectDocument
+from app.modules.datasets.repository import DatasetRepository
+from app.modules.files.repository import FileRepository
 from app.modules.projects.repository import ProjectRepository
 from app.modules.projects.schemas import (
     ProjectCreateRequest,
@@ -10,8 +13,17 @@ from app.shared.schemas.pagination import PageMeta, PageResponse
 
 
 class ProjectService:
-    def __init__(self, project_repository: ProjectRepository) -> None:
+    def __init__(
+        self,
+        project_repository: ProjectRepository,
+        dataset_repository: DatasetRepository,
+        file_repository: FileRepository,
+        storage_client: LocalStorageClient,
+    ) -> None:
         self.project_repository = project_repository
+        self.dataset_repository = dataset_repository
+        self.file_repository = file_repository
+        self.storage_client = storage_client
 
     async def create_project(
         self,
@@ -80,6 +92,16 @@ class ProjectService:
         return self._to_response(project)
 
     async def delete_project(self, project_id: str, user_id: str) -> None:
+        project = await self.project_repository.get_by_id_for_user(project_id, user_id)
+        if project is None:
+            raise NotFoundError("Project not found.")
+
+        files = await self.file_repository.list_by_project_for_user(project_id, user_id)
+        await self.dataset_repository.delete_by_project_for_user(project_id, user_id)
+        await self.file_repository.delete_by_project_for_user(project_id, user_id)
+        for file_document in files:
+            self.storage_client.delete(file_document.storage_path)
+
         deleted = await self.project_repository.delete_by_id_for_user(
             project_id,
             user_id,

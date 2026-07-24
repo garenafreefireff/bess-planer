@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 30
     password_hash_iterations: int = 210_000
+    storage_directory: str = "storage/uploads"
+    max_upload_size_mb: int = 50
 
     model_config = SettingsConfigDict(
         env_file=".env",

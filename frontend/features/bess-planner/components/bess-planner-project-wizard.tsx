@@ -1,13 +1,27 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, CloudUpload, FileSpreadsheet, Info, Settings2, ShieldCheck, Trash2, Upload, Zap } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, CloudUpload, FileSpreadsheet, Info, LoaderCircle, Settings2, ShieldCheck, Trash2, Upload, Zap } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { toast } from "sonner";
 import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { buildSizingOptions, formatNumber } from "@/features/quick-sizing/data/quick-sizing-model";
 import { useQuickSizingStore } from "@/features/quick-sizing/data/quick-sizing-store";
+import {
+  analysesApi,
+  bessCatalogApi,
+  datasetsApi,
+  filesApi,
+  projectsApi,
+  readWorkspaceApiError,
+  sitesApi,
+  type BessCatalogResponse,
+  type DatasetResponse,
+  type SiteResponse
+} from "../api/workspace.api";
+import { ProjectBackendInfoStep as ProjectInfoStep } from "./project-backend-info-step";
 
 const steps = [
   [1, "Thông tin dự án", "Thiết lập thông tin cơ bản"],
@@ -24,6 +38,8 @@ type ProjectInfo = {
   industry: string;
   voltageLevel: string;
   timezone: string;
+  siteId: string;
+  bessCatalogId: string;
 };
 
 type FileInspection = {
@@ -57,15 +73,47 @@ export function BessPlannerProjectWizard() {
   const selectedOptionId = useQuickSizingStore((state) => state.selectedOptionId);
   const selectedQuickOption = useMemo(() => {
     const options = buildSizingOptions(quickAssumptions, quickBasicInfo);
-    return options.find((option) => option.id === selectedOptionId) ?? options[1];
+    return options.find((option) => option.id === selectedOptionId)
+      ?? options[1]
+      ?? options[0]
+      ?? { powerKw: quickAssumptions.powerKw, energyKwh: quickAssumptions.energyKwh };
   }, [quickAssumptions, quickBasicInfo, selectedOptionId]);
   const [currentStep, setCurrentStep] = useState(1);
-  const [project, setProject] = useState<ProjectInfo>({ name: "", location: "", industry: "", voltageLevel: "", timezone: "UTC+07:00 Bangkok, Hanoi, Jakarta" });
+  const [project, setProject] = useState<ProjectInfo>({ name: "", location: "", industry: "", voltageLevel: "", timezone: "UTC+07:00 Bangkok, Hanoi, Jakarta", siteId: "", bessCatalogId: "" });
   const [loadFile, setLoadFile] = useState<FileInspection | null>(null);
   const [pvFile, setPvFile] = useState<FileInspection | null>(null);
+  const [loadSourceFile, setLoadSourceFile] = useState<File | null>(null);
+  const [pvSourceFile, setPvSourceFile] = useState<File | null>(null);
   const [config, setConfig] = useState<ModelConfig>({ objective: "Tối thiểu tổng chi phí vòng đời", analysisYears: 10, energyKwh: 1000, powerKw: 500, optimizePeak: true, optimizeTou: true });
+  const [sites, setSites] = useState<SiteResponse[]>([]);
+  const [catalogItems, setCatalogItems] = useState<BessCatalogResponse[]>([]);
+  const [resourceLoading, setResourceLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStage, setSaveStage] = useState("");
   const [restored, setRestored] = useState(false);
   const suppressNextSave = useRef(false);
+
+  useEffect(() => {
+    let active = true;
+    const loadResources = async () => {
+      setResourceLoading(true);
+      try {
+        const [sitePage, catalogPage] = await Promise.all([
+          sitesApi.list({ page: 1, page_size: 100 }),
+          bessCatalogApi.list({ page: 1, page_size: 100, status: "active" })
+        ]);
+        if (!active) return;
+        setSites(sitePage.items.filter((item) => item.status === "active"));
+        setCatalogItems(catalogPage.items.filter((item) => item.status === "active"));
+      } catch (error) {
+        if (active) toast.error(`Không tải được site/catalog: ${readWorkspaceApiError(error)}`);
+      } finally {
+        if (active) setResourceLoading(false);
+      }
+    };
+    void loadResources();
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (source === "quick-sizing" && quickBasicInfo) {
@@ -75,10 +123,14 @@ export function BessPlannerProjectWizard() {
         location: "",
         industry: quickBasicInfo.industry === "Khác" ? quickBasicInfo.customIndustry || "Khác" : quickBasicInfo.industry,
         voltageLevel: quickBasicInfo.voltageLevel,
-        timezone: "UTC+07:00 Bangkok, Hanoi, Jakarta"
+        timezone: "UTC+07:00 Bangkok, Hanoi, Jakarta",
+        siteId: "",
+        bessCatalogId: ""
       });
       setLoadFile(null);
       setPvFile(null);
+      setLoadSourceFile(null);
+      setPvSourceFile(null);
       setConfig({
         objective: "Tối thiểu tổng chi phí vòng đời",
         analysisYears: quickAssumptions.analysisYears,
@@ -95,7 +147,7 @@ export function BessPlannerProjectWizard() {
     if (raw) {
       try {
         const draft = JSON.parse(raw) as { project?: ProjectInfo; loadFile?: FileInspection | null; pvFile?: FileInspection | null; config?: ModelConfig; currentStep?: number };
-        if (draft.project) setProject(draft.project);
+        if (draft.project) setProject({ name: "", location: "", industry: "", voltageLevel: "", timezone: "UTC+07:00 Bangkok, Hanoi, Jakarta", siteId: "", bessCatalogId: "", ...draft.project });
         if (draft.loadFile) setLoadFile(draft.loadFile);
         if (draft.pvFile) setPvFile(draft.pvFile);
         if (draft.config) setConfig(draft.config);
@@ -117,23 +169,105 @@ export function BessPlannerProjectWizard() {
   }, [config, currentStep, loadFile, project, pvFile, restored, selectedOptionId, source]);
 
   const stepValidity = useMemo(() => ({
-    1: Boolean(project.name.trim() && project.location.trim() && project.industry.trim() && project.voltageLevel.trim()),
-    2: Boolean(loadFile && loadFile.status !== "invalid"),
+    1: Boolean(project.name.trim() && project.location.trim() && project.industry.trim() && project.voltageLevel.trim() && project.siteId && project.bessCatalogId),
+    2: Boolean(loadFile && loadFile.status !== "invalid" && loadSourceFile),
     3: true,
-    4: Boolean(loadFile && loadFile.status !== "invalid"),
+    4: Boolean(loadFile && loadFile.status !== "invalid" && loadSourceFile),
     5: config.energyKwh > 0 && config.powerKw > 0 && config.analysisYears > 0,
-    6: Boolean(loadFile && loadFile.status !== "invalid")
-  }), [config, loadFile, project]);
+    6: Boolean(loadFile && loadFile.status !== "invalid" && loadSourceFile)
+  }), [config, loadFile, loadSourceFile, project]);
 
   const goNext = () => {
     if (!stepValidity[currentStep as keyof typeof stepValidity]) return;
     if (currentStep < 6) setCurrentStep((step) => step + 1);
   };
 
-  const finish = () => {
-    if (!stepValidity[6]) return;
-    window.localStorage.setItem("energyinsight.bessPlanner.lastProject.v1", JSON.stringify({ project, loadFile, pvFile, config, source, selectedOptionId, createdAt: Date.now() }));
-    router.push("/customer-portal/du-an-cua-toi/ket-qua");
+  const finish = async () => {
+    if (!stepValidity[6] || isSaving || !loadSourceFile) return;
+    setIsSaving(true);
+    let createdProjectId = "";
+    try {
+      setSaveStage("Đang tạo dự án...");
+      const createdProject = await projectsApi.create({
+        site_id: project.siteId,
+        bess_catalog_id: project.bessCatalogId,
+        name: project.name,
+        project_type: "bess_planning",
+        status: "draft",
+        configuration: {
+          location: project.location,
+          industry: project.industry,
+          voltageLevel: project.voltageLevel,
+          timezone: project.timezone,
+          objective: config.objective,
+          analysisYears: config.analysisYears,
+          energyKwh: config.energyKwh,
+          powerKw: config.powerKw,
+          optimizePeak: config.optimizePeak,
+          optimizeTou: config.optimizeTou,
+          source,
+          selectedOptionId,
+          loadFile,
+          pvFile
+        },
+        scenarios: [],
+        dataset_ids: []
+      });
+      createdProjectId = createdProject.id;
+
+      const datasets: DatasetResponse[] = [];
+      setSaveStage("Đang upload dữ liệu phụ tải...");
+      const uploadedLoad = await filesApi.upload(loadSourceFile, {
+        project_id: createdProject.id,
+        kind: "load_profile"
+      });
+      setSaveStage("Đang chuẩn hóa dữ liệu phụ tải...");
+      datasets.push(await datasetsApi.create({
+        project_id: createdProject.id,
+        file_id: uploadedLoad.id,
+        dataset_type: "load_profile"
+      }));
+
+      if (pvSourceFile) {
+        setSaveStage("Đang upload dữ liệu điện mặt trời...");
+        const uploadedPv = await filesApi.upload(pvSourceFile, {
+          project_id: createdProject.id,
+          kind: "pv_profile"
+        });
+        setSaveStage("Đang chuẩn hóa dữ liệu điện mặt trời...");
+        datasets.push(await datasetsApi.create({
+          project_id: createdProject.id,
+          file_id: uploadedPv.id,
+          dataset_type: "pv_profile"
+        }));
+      }
+
+      setSaveStage("Đang kiểm tra dữ liệu cho BESS Planner...");
+      const analysisRun = await analysesApi.createBessPlanner(createdProject.id);
+      const finalProject = await projectsApi.get(createdProject.id);
+      const snapshot = {
+        project,
+        loadFile,
+        pvFile,
+        config,
+        source,
+        selectedOptionId,
+        backendProject: finalProject,
+        datasets,
+        analysisRun,
+        createdAt: Date.now()
+      };
+      window.localStorage.setItem("energyinsight.bessPlanner.lastProject.v1", JSON.stringify(snapshot));
+      window.localStorage.removeItem(draftKey);
+      toast.success("Đã tạo dự án, chuẩn hóa dataset và hoàn tất kiểm tra BESS Planner.");
+      router.push(`/customer-portal/du-an-cua-toi/ket-qua?projectId=${createdProject.id}`);
+    } catch (error) {
+      const message = readWorkspaceApiError(error);
+      toast.error(createdProjectId ? `Dự án đã được tạo nhưng xử lý dữ liệu chưa hoàn tất: ${message}` : message);
+    } finally {
+      setSaveStage("");
+      setIsSaving(false);
+    }
   };
 
   const clearDraft = () => {
@@ -141,9 +275,11 @@ export function BessPlannerProjectWizard() {
     suppressNextSave.current = true;
     window.localStorage.removeItem(draftKey);
     setCurrentStep(1);
-    setProject({ name: "", location: "", industry: "", voltageLevel: "", timezone: "UTC+07:00 Bangkok, Hanoi, Jakarta" });
+    setProject({ name: "", location: "", industry: "", voltageLevel: "", timezone: "UTC+07:00 Bangkok, Hanoi, Jakarta", siteId: "", bessCatalogId: "" });
     setLoadFile(null);
     setPvFile(null);
+    setLoadSourceFile(null);
+    setPvSourceFile(null);
     setConfig({ objective: "Tối thiểu tổng chi phí vòng đời", analysisYears: 10, energyKwh: 1000, powerKw: 500, optimizePeak: true, optimizeTou: true });
   };
 
@@ -156,9 +292,9 @@ export function BessPlannerProjectWizard() {
 
       <div className="mt-4 grid grid-cols-[minmax(0,1fr)_360px] gap-5 max-xl:grid-cols-1">
         <Card className="rounded-xl bg-white p-5 shadow-panel">
-          {currentStep === 1 ? <ProjectInfoStep value={project} onChange={setProject} /> : null}
-          {currentStep === 2 ? <UploadStep title="Dữ liệu phụ tải" required description="Tải file CSV chứa timestamp và công suất/điện năng. CSV được kiểm tra trực tiếp trên trình duyệt." file={loadFile} onFile={setLoadFile} /> : null}
-          {currentStep === 3 ? <UploadStep title="Dữ liệu điện mặt trời" description="Bỏ qua bước này nếu dự án chưa có hệ thống PV hoặc chưa có chuỗi dữ liệu thực tế." file={pvFile} onFile={setPvFile} /> : null}
+          {currentStep === 1 ? <ProjectInfoStep value={project} onChange={setProject} sites={sites} catalogItems={catalogItems} loading={resourceLoading} /> : null}
+          {currentStep === 2 ? <UploadStep title="Dữ liệu phụ tải" required description="Tải file CSV/XLSX chứa timestamp và công suất/điện năng. File sẽ được upload và chuẩn hóa trên backend khi tạo dự án." file={loadFile} sourceFile={loadSourceFile} onFile={setLoadFile} onSourceFile={setLoadSourceFile} /> : null}
+          {currentStep === 3 ? <UploadStep title="Dữ liệu điện mặt trời" description="Bỏ qua bước này nếu dự án chưa có hệ thống PV hoặc chưa có chuỗi dữ liệu thực tế." file={pvFile} sourceFile={pvSourceFile} onFile={setPvFile} onSourceFile={setPvSourceFile} /> : null}
           {currentStep === 4 ? <QualityStep loadFile={loadFile} pvFile={pvFile} /> : null}
           {currentStep === 5 ? <ModelConfigStep value={config} onChange={setConfig} /> : null}
           {currentStep === 6 ? <ReviewStep project={project} loadFile={loadFile} pvFile={pvFile} config={config} /> : null}
@@ -169,7 +305,7 @@ export function BessPlannerProjectWizard() {
       <div className="mt-4 grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-xl border border-brand-line bg-white p-3 shadow-panel max-md:grid-cols-1">
         <button className={buttonVariants({ variant: "secondary", className: "h-11" })} disabled={currentStep === 1} onClick={() => setCurrentStep((step) => Math.max(1, step - 1))} type="button"><ArrowLeft size={17} />Quay lại</button>
         <span className="text-center text-sm font-semibold text-brand-muted">Bước {currentStep}/6 · Dữ liệu được lưu nháp trên trình duyệt</span>
-        {currentStep < 6 ? <button className={buttonVariants({ className: "h-11 px-7" })} disabled={!stepValidity[currentStep as keyof typeof stepValidity]} onClick={goNext} type="button">Tiếp tục<ArrowRight size={18} /></button> : <button className={buttonVariants({ variant: "green", className: "h-11 px-7" })} disabled={!stepValidity[6]} onClick={finish} type="button"><Zap size={18} />Chạy phân tích demo</button>}
+        {currentStep < 6 ? <button className={buttonVariants({ className: "h-11 px-7" })} disabled={!stepValidity[currentStep as keyof typeof stepValidity]} onClick={goNext} type="button">Tiếp tục<ArrowRight size={18} /></button> : <button className={buttonVariants({ variant: "green", className: "h-11 px-7" })} disabled={!stepValidity[6] || isSaving} onClick={() => void finish()} type="button">{isSaving ? <LoaderCircle className="animate-spin" size={18} /> : <Zap size={18} />}{isSaving ? saveStage || "Đang xử lý..." : "Lưu dự án & mở kết quả"}</button>}
       </div>
     </main>
   );
@@ -179,11 +315,7 @@ function WizardStepper({ currentStep, validSteps, onStep }: { currentStep: numbe
   return <Card className="mt-4 overflow-x-auto rounded-xl bg-white p-3 shadow-panel"><div className="grid min-w-[1040px] grid-cols-[repeat(6,minmax(150px,1fr))] gap-2">{steps.map(([number, title, description]) => { const active = number === currentStep; const completed = number < currentStep && validSteps[number]; const accessible = number <= currentStep || (number === currentStep + 1 && validSteps[currentStep as keyof typeof validSteps]); return <button className={cn("grid grid-cols-[36px_1fr] items-center gap-2 rounded-lg border p-2.5 text-left", active ? "border-brand-blue bg-blue-50" : completed ? "border-green-100 bg-green-50/50" : "border-brand-line bg-white", !accessible && "cursor-not-allowed opacity-60")} disabled={!accessible} key={number} onClick={() => onStep(number)} type="button"><span className={cn("grid size-8 place-items-center rounded-full text-sm font-bold", active ? "bg-brand-blue text-white" : completed ? "bg-brand-green text-white" : "bg-slate-100 text-brand-muted")}>{completed ? <Check size={17} /> : number}</span><span><strong className="block text-xs text-brand-navy">{title}</strong><small className="mt-0.5 block text-[11px] font-medium text-brand-muted">{description}</small></span></button>; })}</div></Card>;
 }
 
-function ProjectInfoStep({ value, onChange }: { value: ProjectInfo; onChange: (value: ProjectInfo) => void }) {
-  return <section><h2 className="text-xl font-bold text-brand-navy">1. Thông tin dự án</h2><p className="mt-2 text-sm font-medium text-brand-muted">Các trường bắt buộc phải hoàn thành trước khi tải dữ liệu.</p><div className="mt-5 grid grid-cols-2 gap-4 max-md:grid-cols-1"><TextField label="Tên dự án" required value={value.name} onChange={(name) => onChange({ ...value, name })} placeholder="Ví dụ: Nhà máy ABC - Bình Dương" /><TextField label="Địa điểm" required value={value.location} onChange={(location) => onChange({ ...value, location })} placeholder="Tỉnh/thành phố" /><TextField label="Ngành sản xuất" required value={value.industry} onChange={(industry) => onChange({ ...value, industry })} placeholder="Ví dụ: Dệt may" /><SelectField label="Cấp điện áp" required value={value.voltageLevel} onChange={(voltageLevel) => onChange({ ...value, voltageLevel })} options={["", "Hạ áp", "Trung áp", "Cao áp", "Chưa xác định"]} /><SelectField label="Múi giờ" required value={value.timezone} onChange={(timezone) => onChange({ ...value, timezone })} options={["UTC+07:00 Bangkok, Hanoi, Jakarta", "UTC+08:00 Singapore, Kuala Lumpur", "UTC+09:00 Tokyo, Seoul"]} /></div></section>;
-}
-
-function UploadStep({ title, description, required, file, onFile }: { title: string; description: string; required?: boolean; file: FileInspection | null; onFile: (file: FileInspection | null) => void }) {
+function UploadStep({ title, description, required, file, sourceFile, onFile, onSourceFile }: { title: string; description: string; required?: boolean; file: FileInspection | null; sourceFile: File | null; onFile: (file: FileInspection | null) => void; onSourceFile: (file: File | null) => void }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [dragging, setDragging] = useState(false);
   const [reading, setReading] = useState(false);
@@ -191,12 +323,17 @@ function UploadStep({ title, description, required, file, onFile }: { title: str
   const inspect = async (nextFile?: File | null) => {
     if (!nextFile) return;
     setReading(true);
-    onFile(await inspectFile(nextFile));
-    setReading(false);
+    try {
+      const inspected = await inspectFile(nextFile);
+      onFile(inspected);
+      onSourceFile(inspected.status === "invalid" ? null : nextFile);
+    } finally {
+      setReading(false);
+    }
   };
   const onDrop = (event: DragEvent<HTMLDivElement>) => { event.preventDefault(); setDragging(false); void inspect(event.dataTransfer.files.item(0)); };
 
-  return <section><h2 className="text-xl font-bold text-brand-navy">{title} {required ? <span className="text-red-500">*</span> : null}</h2><p className="mt-2 text-sm font-medium text-brand-muted">{description}</p><div className={cn("mt-5 grid min-h-[220px] place-items-center rounded-xl border-2 border-dashed text-center", dragging ? "border-brand-blue bg-blue-50" : "border-blue-200 bg-slate-50/50")} onDragEnter={(event) => { event.preventDefault(); setDragging(true); }} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={onDrop}><div><CloudUpload className="mx-auto text-brand-blue" size={46} /><p className="mt-3 text-sm font-semibold text-brand-navy">Kéo thả CSV/XLSX vào đây</p><p className="mt-1 text-xs font-medium text-brand-muted">CSV sẽ được preview; XLSX chỉ kiểm tra tên và kích thước ở frontend.</p><input accept=".csv,.xlsx,.xls" className="hidden" ref={inputRef} type="file" onChange={(event) => void inspect(event.target.files?.item(0))} /><button className={buttonVariants({ className: "mt-4 h-10" })} disabled={reading} onClick={() => inputRef.current?.click()} type="button"><Upload size={17} />{reading ? "Đang kiểm tra..." : "Chọn file"}</button></div></div>{file ? <FileResult file={file} onRemove={() => { onFile(null); if (inputRef.current) inputRef.current.value = ""; }} /> : <div className="mt-4 rounded-lg border border-dashed border-brand-line p-4 text-sm font-medium text-brand-muted">Chưa có file được chọn.</div>}</section>;
+  return <section><h2 className="text-xl font-bold text-brand-navy">{title} {required ? <span className="text-red-500">*</span> : null}</h2><p className="mt-2 text-sm font-medium text-brand-muted">{description}</p><div className={cn("mt-5 grid min-h-[220px] place-items-center rounded-xl border-2 border-dashed text-center", dragging ? "border-brand-blue bg-blue-50" : "border-blue-200 bg-slate-50/50")} onDragEnter={(event) => { event.preventDefault(); setDragging(true); }} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={onDrop}><div><CloudUpload className="mx-auto text-brand-blue" size={46} /><p className="mt-3 text-sm font-semibold text-brand-navy">Kéo thả CSV/XLSX vào đây</p><p className="mt-1 text-xs font-medium text-brand-muted">CSV sẽ được preview; XLSX chỉ kiểm tra tên và kích thước ở frontend.</p><input accept=".csv,.xlsx" className="hidden" ref={inputRef} type="file" onChange={(event) => void inspect(event.target.files?.item(0))} /><button className={buttonVariants({ className: "mt-4 h-10" })} disabled={reading} onClick={() => inputRef.current?.click()} type="button"><Upload size={17} />{reading ? "Đang kiểm tra..." : "Chọn file"}</button></div></div>{file ? <><FileResult file={file} onRemove={() => { onFile(null); onSourceFile(null); if (inputRef.current) inputRef.current.value = ""; }} />{!sourceFile ? <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">Trình duyệt không thể khôi phục file gốc từ bản nháp. Hãy chọn lại file trước khi tiếp tục.</div> : null}</> : <div className="mt-4 rounded-lg border border-dashed border-brand-line p-4 text-sm font-medium text-brand-muted">Chưa có file được chọn.</div>}</section>;
 }
 
 function FileResult({ file, onRemove }: { file: FileInspection; onRemove: () => void }) {
@@ -205,7 +342,7 @@ function FileResult({ file, onRemove }: { file: FileInspection; onRemove: () => 
 
 function QualityStep({ loadFile, pvFile }: { loadFile: FileInspection | null; pvFile: FileInspection | null }) {
   const files = [["Phụ tải", loadFile], ["Điện mặt trời", pvFile]] as const;
-  return <section><h2 className="text-xl font-bold text-brand-navy">4. Kiểm tra chất lượng dữ liệu</h2><p className="mt-2 text-sm font-medium text-brand-muted">Các kiểm tra dưới đây được thực hiện cục bộ trên trình duyệt và chưa thay thế bộ kiểm tra dữ liệu phía máy chủ.</p><div className="mt-5 grid gap-4">{files.map(([label, file]) => <Card className="rounded-xl p-4 shadow-none" key={label}><div className="flex items-center justify-between gap-3"><h3 className="flex items-center gap-2 font-bold text-brand-navy"><ShieldCheck className="text-brand-blue" size={20} />{label}</h3><StatusBadge file={file} /></div>{file ? <div className="mt-4 grid grid-cols-4 gap-3 max-md:grid-cols-2 max-sm:grid-cols-1"><QualityMetric label="Tên file" value={file.name} /><QualityMetric label="Số dòng" value={file.rowCount === null ? "Chưa xác định" : formatNumber(file.rowCount, 0)} /><QualityMetric label="Số cột" value={formatNumber(file.headers.length, 0)} /><QualityMetric label="Định dạng" value={file.extension.toUpperCase()} /></div> : <p className="mt-4 text-sm font-medium text-brand-muted">{label === "Điện mặt trời" ? "Không có file PV; bước này là tùy chọn." : "Chưa có file phụ tải."}</p>}{file?.messages.length ? <div className="mt-3 rounded-lg bg-slate-50 p-3 text-xs font-medium leading-5 text-brand-muted">{file.messages.map((message) => <p key={message}>• {message}</p>)}</div> : null}</Card>)}</div></section>;
+  return <section><h2 className="text-xl font-bold text-brand-navy">4. Kiểm tra chất lượng dữ liệu</h2><p className="mt-2 text-sm font-medium text-brand-muted">Đây là kiểm tra sơ bộ trên trình duyệt. Backend sẽ đọc lại toàn bộ file, xác định interval, dòng lỗi và timestamp trùng khi tạo dự án.</p><div className="mt-5 grid gap-4">{files.map(([label, file]) => <Card className="rounded-xl p-4 shadow-none" key={label}><div className="flex items-center justify-between gap-3"><h3 className="flex items-center gap-2 font-bold text-brand-navy"><ShieldCheck className="text-brand-blue" size={20} />{label}</h3><StatusBadge file={file} /></div>{file ? <div className="mt-4 grid grid-cols-4 gap-3 max-md:grid-cols-2 max-sm:grid-cols-1"><QualityMetric label="Tên file" value={file.name} /><QualityMetric label="Số dòng" value={file.rowCount === null ? "Chưa xác định" : formatNumber(file.rowCount, 0)} /><QualityMetric label="Số cột" value={formatNumber(file.headers.length, 0)} /><QualityMetric label="Định dạng" value={file.extension.toUpperCase()} /></div> : <p className="mt-4 text-sm font-medium text-brand-muted">{label === "Điện mặt trời" ? "Không có file PV; bước này là tùy chọn." : "Chưa có file phụ tải."}</p>}{file?.messages.length ? <div className="mt-3 rounded-lg bg-slate-50 p-3 text-xs font-medium leading-5 text-brand-muted">{file.messages.map((message) => <p key={message}>• {message}</p>)}</div> : null}</Card>)}</div></section>;
 }
 
 function ModelConfigStep({ value, onChange }: { value: ModelConfig; onChange: (value: ModelConfig) => void }) {
@@ -213,7 +350,7 @@ function ModelConfigStep({ value, onChange }: { value: ModelConfig; onChange: (v
 }
 
 function ReviewStep({ project, loadFile, pvFile, config }: { project: ProjectInfo; loadFile: FileInspection | null; pvFile: FileInspection | null; config: ModelConfig }) {
-  return <section><h2 className="text-xl font-bold text-brand-navy">6. Xác nhận trước khi chạy</h2><p className="mt-2 text-sm font-medium text-brand-muted">Kiểm tra lại dữ liệu. Nút chạy hiện tạo kết quả demo trên frontend và chưa gửi file ra ngoài.</p><div className="mt-5 grid grid-cols-2 gap-4 max-lg:grid-cols-1"><ReviewCard title="Dự án" rows={[["Tên", project.name], ["Địa điểm", project.location], ["Ngành", project.industry], ["Điện áp", project.voltageLevel]]} /><ReviewCard title="Dữ liệu" rows={[["Phụ tải", loadFile?.name || "Chưa có"], ["Trạng thái", loadFile?.status || "Chưa kiểm tra"], ["PV", pvFile?.name || "Không sử dụng"]]} /><ReviewCard title="Cấu hình" rows={[["Mục tiêu", config.objective], ["Thời hạn", `${config.analysisYears} năm`], ["Sizing tham chiếu", `${formatNumber(config.powerKw, 0)} kW / ${formatNumber(config.energyKwh, 0)} kWh`], ["Peak shaving", config.optimizePeak ? "Có" : "Không"], ["TOU", config.optimizeTou ? "Có" : "Không"]]} /></div><div className="mt-5 flex gap-3 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm font-medium leading-6 text-brand-blue"><Info className="shrink-0" size={20} /><span>Frontend sẽ lưu snapshot dự án vào localStorage rồi mở màn hình kết quả. Không có file nào được upload lên máy chủ trong phiên bản này.</span></div></section>;
+  return <section><h2 className="text-xl font-bold text-brand-navy">6. Xác nhận trước khi chạy</h2><p className="mt-2 text-sm font-medium text-brand-muted">Kiểm tra lại dữ liệu. Khi xác nhận, dự án sẽ được tạo, file gốc được upload và dataset được chuẩn hóa trên backend.</p><div className="mt-5 grid grid-cols-2 gap-4 max-lg:grid-cols-1"><ReviewCard title="Dự án" rows={[["Tên", project.name], ["Địa điểm", project.location], ["Ngành", project.industry], ["Điện áp", project.voltageLevel]]} /><ReviewCard title="Dữ liệu" rows={[["Phụ tải", loadFile?.name || "Chưa có"], ["Trạng thái", loadFile?.status || "Chưa kiểm tra"], ["PV", pvFile?.name || "Không sử dụng"]]} /><ReviewCard title="Cấu hình" rows={[["Mục tiêu", config.objective], ["Thời hạn", `${config.analysisYears} năm`], ["Sizing tham chiếu", `${formatNumber(config.powerKw, 0)} kW / ${formatNumber(config.energyKwh, 0)} kWh`], ["Peak shaving", config.optimizePeak ? "Có" : "Không"], ["TOU", config.optimizeTou ? "Có" : "Không"]]} /></div><div className="mt-5 flex gap-3 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm font-medium leading-6 text-brand-blue"><Info className="shrink-0" size={20} /><span>Dự án, file gốc và kết quả kiểm tra dataset sẽ được lưu trên backend. BESS Planner optimizer chưa chạy ở bước này.</span></div></section>;
 }
 
 function WizardSidebar({ currentStep, project, loadFile, config }: { currentStep: number; project: ProjectInfo; loadFile: FileInspection | null; config: ModelConfig }) {
@@ -223,11 +360,11 @@ function WizardSidebar({ currentStep, project, loadFile, config }: { currentStep
 async function inspectFile(file: File): Promise<FileInspection> {
   const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
   const messages: string[] = [];
-  const allowed = ["csv", "xlsx", "xls"];
-  if (!allowed.includes(extension)) return { name: file.name, sizeLabel: formatFileSize(file.size), extension, rowCount: null, headers: [], preview: [], status: "invalid", messages: ["Định dạng không được hỗ trợ. Chỉ chấp nhận CSV/XLSX/XLS."] };
+  const allowed = ["csv", "xlsx"];
+  if (!allowed.includes(extension)) return { name: file.name, sizeLabel: formatFileSize(file.size), extension, rowCount: null, headers: [], preview: [], status: "invalid", messages: ["Định dạng không được hỗ trợ. Chỉ chấp nhận CSV hoặc XLSX."] };
   if (file.size === 0) return { name: file.name, sizeLabel: "0 KB", extension, rowCount: 0, headers: [], preview: [], status: "invalid", messages: ["File rỗng."] };
   if (file.size > 50 * 1024 * 1024) {
-    return { name: file.name, sizeLabel: formatFileSize(file.size), extension, rowCount: null, headers: [], preview: [], status: "warning", messages: ["File lớn hơn 50 MB nên frontend không đọc toàn bộ nội dung. Hãy chia nhỏ file hoặc kiểm tra bằng dịch vụ xử lý dữ liệu."] };
+    return { name: file.name, sizeLabel: formatFileSize(file.size), extension, rowCount: null, headers: [], preview: [], status: "invalid", messages: ["File vượt giới hạn upload 50 MB. Hãy chia nhỏ file trước khi tiếp tục."] };
   }
   if (extension !== "csv") return { name: file.name, sizeLabel: formatFileSize(file.size), extension, rowCount: null, headers: [], preview: [], status: "warning", messages: [...messages, "Frontend chưa đọc nội dung Excel; file sẽ cần được kiểm tra đầy đủ khi tích hợp dịch vụ xử lý dữ liệu."] };
 
@@ -249,7 +386,6 @@ async function inspectFile(file: File): Promise<FileInspection> {
 }
 
 function formatFileSize(size: number) { return size >= 1024 * 1024 ? `${(size / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(size / 1024))} KB`; }
-function TextField({ label, value, onChange, placeholder, required }: { label: string; value: string; onChange: (value: string) => void; placeholder: string; required?: boolean }) { return <label className="grid gap-2 text-sm font-bold text-brand-navy">{label} {required ? <span className="text-red-500">*</span> : null}<input className="h-11 rounded-lg border border-brand-line px-4 text-sm font-medium outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/15" onChange={(event) => onChange(event.target.value)} placeholder={placeholder} required={required} value={value} /></label>; }
 function SelectField({ label, value, onChange, options, required }: { label: string; value: string; onChange: (value: string) => void; options: string[]; required?: boolean }) { return <label className="grid gap-2 text-sm font-bold text-brand-navy">{label} {required ? <span className="text-red-500">*</span> : null}<select className="h-11 rounded-lg border border-brand-line bg-white px-4 text-sm font-medium outline-none focus:border-brand-blue" onChange={(event) => onChange(event.target.value)} required={required} value={value}>{options.map((option) => <option disabled={option === ""} key={option || "empty"} value={option}>{option || "Chọn giá trị"}</option>)}</select></label>; }
 function NumberField({ label, unit, value, onChange }: { label: string; unit: string; value: number; onChange: (value: number) => void }) { return <label className="grid gap-2 text-sm font-bold text-brand-navy">{label}<span className="grid grid-cols-[1fr_100px]"><input className="h-11 rounded-l-lg border border-r-0 border-brand-line px-4 text-right text-sm font-medium outline-none focus:border-brand-blue" min={1} onChange={(event) => onChange(Math.max(1, Number(event.target.value)))} type="number" value={value} /><span className="grid h-11 place-items-center rounded-r-lg border border-brand-line bg-slate-50 text-xs text-brand-muted">{unit}</span></span></label>; }
 function ToggleCard({ title, description, checked, onChange }: { title: string; description: string; checked: boolean; onChange: (checked: boolean) => void }) { return <button className={cn("grid grid-cols-[1fr_auto] items-center gap-3 rounded-xl border p-4 text-left", checked ? "border-brand-blue bg-blue-50" : "border-brand-line")} onClick={() => onChange(!checked)} type="button"><span><strong className="block text-sm text-brand-navy">{title}</strong><small className="mt-1 block text-xs font-medium text-brand-muted">{description}</small></span><span className={cn("h-6 w-11 rounded-full p-1", checked ? "bg-brand-blue" : "bg-slate-300")}><span className={cn("block size-4 rounded-full bg-white transition", checked && "translate-x-5")} /></span></button>; }

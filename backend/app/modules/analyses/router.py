@@ -6,7 +6,11 @@ from app.dependencies.authentication import CurrentUserDep, OptionalCurrentUserD
 from app.dependencies.common import PaginationDep
 from app.modules.analyses.dependencies import AnalysisServiceDep
 from app.modules.analyses.enums import AnalysisType
-from app.modules.analyses.schemas import AnalysisRunResponse, QuickSizingStep1Request
+from app.modules.analyses.schemas import (
+    AnalysisRunResponse,
+    BessPlannerAnalysisRequest,
+    QuickSizingStep1Request,
+)
 from app.shared.schemas.object_id import ObjectIdStr
 from app.shared.schemas.pagination import PageResponse
 
@@ -27,6 +31,19 @@ async def create_quick_sizing_run(
         payload,
         current_user.id if current_user else None,
     )
+
+
+@router.post(
+    "/bess-planner",
+    response_model=AnalysisRunResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_bess_planner_run(
+    payload: BessPlannerAnalysisRequest,
+    current_user: CurrentUserDep,
+    analysis_service: AnalysisServiceDep,
+) -> AnalysisRunResponse:
+    return await analysis_service.create_bess_planner_run(payload, current_user.id)
 
 
 @router.get("", response_model=PageResponse[AnalysisRunResponse])

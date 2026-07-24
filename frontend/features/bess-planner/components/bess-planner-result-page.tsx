@@ -7,11 +7,13 @@ import {
   Save,
   Share2
 } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AppHeader } from "@/components/layout/app-header";
 import { Card } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { analysesApi, datasetsApi, projectsApi, readWorkspaceApiError, type AnalysisRunResponse, type DatasetResponse, type ProjectResponse } from "../api/workspace.api";
 
 const tabs = ["Tổng quan", "Khuyến nghị", "Planning chi tiết", "So sánh chế độ", "Sizing theo tháng", "Dữ liệu đầu vào"] as const;
 type ResultTab = (typeof tabs)[number];
@@ -21,6 +23,9 @@ type ProjectSnapshot = {
   loadFile?: { name?: string; rowCount?: number | null; status?: string; sizeLabel?: string } | null;
   pvFile?: { name?: string; rowCount?: number | null; status?: string; sizeLabel?: string } | null;
   config?: { objective?: string; analysisYears?: number; energyKwh?: number; powerKw?: number; optimizePeak?: boolean; optimizeTou?: boolean };
+  backendProject?: ProjectResponse;
+  datasets?: DatasetResponse[];
+  analysisRun?: AnalysisRunResponse;
   createdAt?: number;
 };
 
@@ -68,28 +73,74 @@ const monthlyRows = [
 ];
 
 export function BessPlannerResultPage({ embedded = false }: { embedded?: boolean } = {}) {
+  const searchParams = useSearchParams();
+  const projectId = searchParams.get("projectId");
   const [activeTab, setActiveTab] = useState<ResultTab>("Khuyến nghị");
   const [snapshot, setSnapshot] = useState<ProjectSnapshot | null>(null);
   const [actionMessage, setActionMessage] = useState("");
+  const [backendLoading, setBackendLoading] = useState(Boolean(projectId));
+  const [backendError, setBackendError] = useState("");
 
   useEffect(() => {
-    const raw = window.localStorage.getItem("energyinsight.bessPlanner.lastProject.v1");
-    if (!raw) return;
-    try {
-      setSnapshot(JSON.parse(raw) as ProjectSnapshot);
-    } catch {
-      window.localStorage.removeItem("energyinsight.bessPlanner.lastProject.v1");
+    let active = true;
+    const localSnapshot = readLocalProjectSnapshot();
+    if (localSnapshot) setSnapshot(localSnapshot);
+
+    if (!projectId) {
+      setBackendLoading(false);
+      return () => { active = false; };
     }
-  }, []);
+
+    const loadProject = async () => {
+      setBackendLoading(true);
+      setBackendError("");
+      try {
+        const [project, datasetPage] = await Promise.all([
+          projectsApi.get(projectId),
+          datasetsApi.list({ page: 1, page_size: 100, project_id: projectId })
+        ]);
+        const analysisRun = project.latest_analysis_run_id
+          ? await analysesApi.get(project.latest_analysis_run_id)
+          : undefined;
+        if (active) setSnapshot(snapshotFromBackendProject(project, localSnapshot, datasetPage.items, analysisRun));
+      } catch (error) {
+        if (active) setBackendError(readWorkspaceApiError(error));
+      } finally {
+        if (active) setBackendLoading(false);
+      }
+    };
+    void loadProject();
+    return () => { active = false; };
+  }, [projectId]);
 
   const runDemoAction = (message: string) => {
     setActionMessage(message);
     window.setTimeout(() => setActionMessage(""), 1800);
   };
 
-  const saveScenario = () => {
-    window.localStorage.setItem("energyinsight.bessPlanner.savedScenario.v1", JSON.stringify({ snapshot, savedAt: Date.now() }));
-    runDemoAction("Đã lưu kịch bản trên trình duyệt");
+  const saveScenario = async () => {
+    const savedAt = new Date().toISOString();
+    window.localStorage.setItem("energyinsight.bessPlanner.savedScenario.v1", JSON.stringify({ snapshot, savedAt }));
+    if (!snapshot?.backendProject) {
+      runDemoAction("Đã lưu kịch bản trên trình duyệt");
+      return;
+    }
+
+    try {
+      const scenario = {
+        saved_at: savedAt,
+        source: "bess_planner_result_demo",
+        configuration: snapshot.config ?? {},
+        note: "KPI phân tích vẫn là dữ liệu demo cho tới khi optimizer backend được triển khai."
+      };
+      const updated = await projectsApi.update(snapshot.backendProject.id, {
+        scenarios: [...snapshot.backendProject.scenarios, scenario]
+      });
+      setSnapshot((current) => current ? { ...current, backendProject: updated } : current);
+      runDemoAction("Đã lưu kịch bản vào dự án backend");
+    } catch (error) {
+      runDemoAction(`Không lưu được backend: ${readWorkspaceApiError(error)}`);
+    }
   };
 
   const shareResult = async () => {
@@ -109,7 +160,7 @@ export function BessPlannerResultPage({ embedded = false }: { embedded?: boolean
         <div>
           <div className="flex items-center gap-4">
             <h1 className="text-[21px] font-bold leading-tight text-brand-navy">Kết quả phân tích</h1>
-            <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-bold text-brand-green">Hoàn tất</span>
+            <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-brand-blue">{snapshot?.backendProject ? "Dự án đã lưu" : "Dữ liệu demo"}</span>
           </div>
           <p className="mt-1.5 text-sm font-semibold text-brand-muted">{snapshot?.createdAt ? `Tạo lúc: ${new Date(snapshot.createdAt).toLocaleString("vi-VN")}` : "Dữ liệu minh họa frontend"}</p>
         </div>
@@ -127,7 +178,7 @@ export function BessPlannerResultPage({ embedded = false }: { embedded?: boolean
             <FileDown size={16} className="text-red-500" />
             In / Lưu PDF
           </button>
-          <button className={buttonVariants({ variant: "secondary", size: "sm", className: "border-brand-line text-brand-blue" })} onClick={saveScenario} type="button">
+          <button className={buttonVariants({ variant: "secondary", size: "sm", className: "border-brand-line text-brand-blue" })} onClick={() => void saveScenario()} type="button">
             <Save size={16} />
             Lưu kịch bản
           </button>
@@ -139,6 +190,10 @@ export function BessPlannerResultPage({ embedded = false }: { embedded?: boolean
       </section>
 
       {actionMessage ? <div className="mt-3 rounded-lg border border-green-100 bg-green-50 px-4 py-2 text-sm font-bold text-brand-green">{actionMessage}</div> : null}
+      {backendLoading ? <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-4 py-2 text-sm font-semibold text-brand-blue">Đang tải dự án từ backend...</div> : null}
+      {backendError ? <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700">Không tải được dự án backend: {backendError}</div> : null}
+      {snapshot?.analysisRun ? <div className={cn("mt-3 rounded-lg border px-4 py-2 text-sm font-semibold leading-6", isReadyForOptimization(snapshot.analysisRun) ? "border-green-200 bg-green-50 text-green-800" : "border-amber-200 bg-amber-50 text-amber-800")}>Kiểm tra dữ liệu backend: {isReadyForOptimization(snapshot.analysisRun) ? "đã sẵn sàng cho bước tối ưu" : "còn điều kiện cần xử lý"}. Dispatch optimizer và KPI tài chính bên dưới chưa được chạy.</div> : snapshot?.backendProject ? <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold leading-6 text-amber-800">Dự án đã được tải từ backend nhưng chưa có BESS Planner precheck.</div> : null}
+      {snapshot?.analysisRun ? <AnalysisPrecheckDetails analysisRun={snapshot.analysisRun} /> : null}
 
       <Tabs activeTab={activeTab} onChange={setActiveTab} />
 
@@ -159,6 +214,86 @@ export function BessPlannerResultPage({ embedded = false }: { embedded?: boolean
       {content}
     </>
   );
+}
+
+function readLocalProjectSnapshot(): ProjectSnapshot | null {
+  const raw = window.localStorage.getItem("energyinsight.bessPlanner.lastProject.v1");
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as ProjectSnapshot;
+  } catch {
+    window.localStorage.removeItem("energyinsight.bessPlanner.lastProject.v1");
+    return null;
+  }
+}
+
+function snapshotFromBackendProject(project: ProjectResponse, fallback: ProjectSnapshot | null, datasets: DatasetResponse[] = [], analysisRun?: AnalysisRunResponse): ProjectSnapshot {
+  const configuration = project.configuration;
+  const updatedAt = Date.parse(project.updated_at);
+  return {
+    ...fallback,
+    project: {
+      ...fallback?.project,
+      name: project.name,
+      location: readString(configuration.location, fallback?.project?.location),
+      industry: readString(configuration.industry, fallback?.project?.industry),
+      voltageLevel: readString(configuration.voltageLevel, fallback?.project?.voltageLevel),
+      timezone: readString(configuration.timezone, fallback?.project?.timezone)
+    },
+    config: {
+      ...fallback?.config,
+      objective: readString(configuration.objective, fallback?.config?.objective),
+      analysisYears: readNumber(configuration.analysisYears, fallback?.config?.analysisYears),
+      energyKwh: readNumber(configuration.energyKwh, fallback?.config?.energyKwh),
+      powerKw: readNumber(configuration.powerKw, fallback?.config?.powerKw),
+      optimizePeak: readBoolean(configuration.optimizePeak, fallback?.config?.optimizePeak),
+      optimizeTou: readBoolean(configuration.optimizeTou, fallback?.config?.optimizeTou)
+    },
+    loadFile: readFileMetadata(configuration.loadFile) ?? fallback?.loadFile,
+    pvFile: readFileMetadata(configuration.pvFile) ?? fallback?.pvFile,
+    backendProject: project,
+    datasets,
+    analysisRun: analysisRun ?? fallback?.analysisRun,
+    createdAt: Number.isNaN(updatedAt) ? fallback?.createdAt : updatedAt
+  };
+}
+
+function readString(value: unknown, fallback?: string) {
+  return typeof value === "string" && value.trim() ? value : fallback;
+}
+
+function readNumber(value: unknown, fallback?: number) {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function readBoolean(value: unknown, fallback?: boolean) {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function isReadyForOptimization(analysisRun: AnalysisRunResponse) {
+  return analysisRun.result.ready_for_optimization === true;
+}
+
+function AnalysisPrecheckDetails({ analysisRun }: { analysisRun: AnalysisRunResponse }) {
+  const blockers = readStringArray(analysisRun.result.blockers);
+  const warnings = readStringArray(analysisRun.result.warnings);
+  if (!blockers.length && !warnings.length) return null;
+  return <div className="mt-3 grid grid-cols-2 gap-3 max-md:grid-cols-1">{blockers.length ? <Card className="border-red-200 bg-red-50 p-4 shadow-none"><h3 className="text-sm font-bold text-red-700">Điều kiện chặn</h3><div className="mt-2 grid gap-1 text-xs font-medium leading-5 text-red-700">{blockers.map((item) => <p key={item}>• {item}</p>)}</div></Card> : null}{warnings.length ? <Card className="border-amber-200 bg-amber-50 p-4 shadow-none"><h3 className="text-sm font-bold text-amber-800">Cảnh báo dữ liệu</h3><div className="mt-2 grid gap-1 text-xs font-medium leading-5 text-amber-800">{warnings.map((item) => <p key={item}>• {item}</p>)}</div></Card> : null}</div>;
+}
+
+function readStringArray(value: unknown) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function readFileMetadata(value: unknown): ProjectSnapshot["loadFile"] | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const record = value as Record<string, unknown>;
+  return {
+    name: readString(record.name),
+    rowCount: typeof record.rowCount === "number" ? record.rowCount : null,
+    status: readString(record.status),
+    sizeLabel: readString(record.sizeLabel)
+  };
 }
 
 function Breadcrumb({ projectName }: { projectName?: string }) {
@@ -242,7 +377,7 @@ function InputDataSection({ snapshot }: { snapshot: ProjectSnapshot | null }) {
     ["Peak shaving", snapshot.config?.optimizePeak ? "Có" : "Không"],
     ["TOU", snapshot.config?.optimizeTou ? "Có" : "Không"]
   ];
-  return <Card className="mt-3 rounded-xl bg-white p-4 shadow-none"><h2 className="text-lg font-bold text-brand-navy">Dữ liệu đầu vào đã lưu</h2><div className="mt-4 grid grid-cols-2 gap-x-8 gap-y-2 max-md:grid-cols-1">{rows.map(([label, value]) => <div className="flex justify-between gap-4 border-b border-brand-line py-2 text-sm" key={label}><span className="font-medium text-brand-muted">{label}</span><strong className="text-right text-brand-navy">{value}</strong></div>)}</div><div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-xs font-medium leading-5 text-brand-muted">Dữ liệu này được đọc từ localStorage của frontend. File gốc không được lưu, chỉ lưu metadata và preview đã kiểm tra.</div></Card>;
+  return <div className="mt-3 grid gap-3"><Card className="rounded-xl bg-white p-4 shadow-none"><h2 className="text-lg font-bold text-brand-navy">Dữ liệu đầu vào đã lưu</h2><div className="mt-4 grid grid-cols-2 gap-x-8 gap-y-2 max-md:grid-cols-1">{rows.map(([label, value]) => <div className="flex justify-between gap-4 border-b border-brand-line py-2 text-sm" key={label}><span className="font-medium text-brand-muted">{label}</span><strong className="text-right text-brand-navy">{value}</strong></div>)}</div></Card><Card className="rounded-xl bg-white p-4 shadow-none"><h2 className="text-lg font-bold text-brand-navy">Dataset backend</h2>{snapshot.datasets?.length ? <div className="mt-4 grid gap-3">{snapshot.datasets.map((dataset) => <div className="grid grid-cols-[1fr_auto] gap-4 rounded-lg border border-brand-line bg-slate-50 p-4" key={dataset.id}><div><strong className="block text-sm text-brand-navy">{dataset.dataset_type === "load_profile" ? "Phụ tải" : "Điện mặt trời"}</strong><span className="mt-1 block text-xs font-medium text-brand-muted">{dataset.valid_row_count.toLocaleString("vi-VN")}/{dataset.row_count.toLocaleString("vi-VN")} dòng hợp lệ · interval {dataset.interval_minutes ?? "—"} phút · {dataset.timestamp_column ?? "—"} / {dataset.value_column ?? "—"}</span></div><span className={cn("h-fit rounded-full px-3 py-1 text-xs font-bold", dataset.status === "ready" ? "bg-green-50 text-brand-green" : dataset.status === "warning" ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-600")}>{dataset.status}</span></div>)}</div> : <p className="mt-3 text-sm font-medium text-brand-muted">Dự án chưa có dataset backend.</p>}<div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-xs font-medium leading-5 text-brand-muted">File gốc và kết quả chuẩn hóa hiện được lưu trên backend. KPI tối ưu vẫn là dữ liệu demo cho tới khi optimizer được triển khai.</div></Card></div>;
 }
 
 function ParetoChart() {

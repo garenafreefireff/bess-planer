@@ -32,6 +32,7 @@ import { authApi } from "@/features/auth/api/auth.api";
 import { PortalAuthGate } from "@/features/auth/components/portal-auth-gate";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { cn } from "@/lib/utils";
+import { BackendResourcesContent } from "@/features/bess-planner/components/backend-resources-page";
 
 const sidebarGroups = [
   {
@@ -179,6 +180,10 @@ function PortalSection({ section }: { section: string }) {
   }
 
   if (section === "data") {
+    return <BackendResourcesContent />;
+  }
+
+  if (section === "local-data") {
     const sources = [
       { label: "Bản nháp Quick Sizing", available: localData.hasQuickSizing, detail: "Thông tin doanh nghiệp và bộ giả định đã lưu trên trình duyệt.", href: "/quick-sizing" },
       { label: "Bản nháp BESS Planner", available: localData.hasProjectDraft, detail: "Thông tin dự án, metadata file và cấu hình wizard.", href: "/customer-portal/du-an-cua-toi/tao-du-an" },

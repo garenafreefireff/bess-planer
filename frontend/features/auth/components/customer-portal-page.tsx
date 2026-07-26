@@ -26,6 +26,8 @@ import {
   Users,
   Zap
 } from "lucide-react";
+import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { Card } from "@/components/ui/card";
 import { authApi } from "@/features/auth/api/auth.api";
@@ -33,6 +35,7 @@ import { PortalAuthGate } from "@/features/auth/components/portal-auth-gate";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { cn } from "@/lib/utils";
 import { BackendResourcesContent } from "@/features/bess-planner/components/backend-resources-page";
+import { PortalOverviewDashboard } from "@/features/auth/components/portal-overview-dashboard";
 
 const sidebarGroups = [
   {
@@ -44,7 +47,7 @@ const sidebarGroups = [
     items: [
       { label: "Ứng dụng", icon: LayoutGrid },
       { label: "Dự án của tôi", icon: FolderOpen },
-      { label: "Dữ liệu của tôi", icon: Database },
+      { label: "Cấu hình hệ thống", icon: Database },
       { label: "Báo cáo", icon: BarChart3 }
     ]
   },
@@ -114,46 +117,13 @@ const toneClasses = {
 };
 
 export function CustomerPortalPage() {
-  const [section, setSection] = useState("overview");
+  const searchParams = useSearchParams();
+  const section = searchParams.get("section") ?? "overview";
 
-  useEffect(() => {
-    setSection(new URLSearchParams(window.location.search).get("section") ?? "overview");
-  }, []);
-
-  const activeItemBySection: Record<string, string> = {
-    overview: "Tổng quan",
-    apps: "Ứng dụng",
-    data: "Dữ liệu của tôi",
-    reports: "Báo cáo",
-    organization: "Tổ chức",
-    members: "Thành viên",
-    settings: "Cài đặt"
-  };
-
-  return (
-    <PortalAuthenticatedLayout activeItem={activeItemBySection[section] ?? "Tổng quan"}>
-      {section === "overview" ? (
-        <div className="py-7">
-          <div>
-            <h1 className="text-[34px] font-bold leading-tight text-brand-navy">Tổng quan Portal</h1>
-            <p className="mt-2 text-[15px] font-medium text-brand-muted">Nền tảng phân tích & lập kế hoạch năng lượng toàn diện cho doanh nghiệp.</p>
-          </div>
-
-          <div className="mt-6 grid grid-cols-[minmax(0,1.92fr)_minmax(360px,0.88fr)] gap-5 max-xl:grid-cols-1">
-            <div className="grid min-w-0 gap-5">
-              <ApplicationsCard />
-              <StatsGrid />
-              <ProjectsTable />
-            </div>
-            <div className="grid content-start gap-5">
-              <RecentActivity />
-              <SupportCard />
-              <PlanCard />
-            </div>
-          </div>
-        </div>
-      ) : <PortalSection section={section} />}
-    </PortalAuthenticatedLayout>
+  return section === "overview" ? (
+    <PortalOverviewDashboard />
+  ) : (
+    <PortalSection section={section} />
   );
 }
 
@@ -202,7 +172,7 @@ function PortalSection({ section }: { section: string }) {
               <h2 className="mt-4 text-lg font-bold text-brand-navy">{source.label}</h2>
               <p className="mt-2 min-h-[48px] text-sm font-medium leading-6 text-brand-muted">{source.detail}</p>
               <span className={cn("mt-3 inline-flex rounded-full px-3 py-1 text-xs font-bold", source.available ? "bg-green-50 text-brand-green" : "bg-slate-100 text-brand-muted")}>{source.available ? "Có dữ liệu" : "Chưa có dữ liệu"}</span>
-              <a className="mt-4 flex h-10 items-center justify-center gap-2 rounded-lg border border-brand-line text-sm font-bold text-brand-blue" href={source.href}>{source.available ? "Mở dữ liệu" : "Tạo dữ liệu"}<ArrowRight size={16} /></a>
+              <Link className="mt-4 flex h-10 items-center justify-center gap-2 rounded-lg border border-brand-line text-sm font-bold text-brand-blue" href={source.href}>{source.available ? "Mở dữ liệu" : "Tạo dữ liệu"}<ArrowRight size={16} /></Link>
             </Card>
           ))}
         </div>
@@ -229,7 +199,7 @@ function PortalSection({ section }: { section: string }) {
               <span className="grid size-11 place-items-center rounded-xl bg-blue-50 text-brand-blue"><Icon size={23} /></span>
               <h2 className="mt-4 text-lg font-bold text-brand-navy">{title}</h2>
               <p className="mt-2 min-h-[48px] text-sm font-medium leading-6 text-brand-muted">{detail}</p>
-              <a className="mt-4 flex h-10 items-center justify-center gap-2 rounded-lg bg-brand-blue text-sm font-bold text-white" href={href}>Mở báo cáo<ArrowRight size={16} /></a>
+              <Link className="mt-4 flex h-10 items-center justify-center gap-2 rounded-lg bg-brand-blue text-sm font-bold text-white" href={href}>Mở báo cáo<ArrowRight size={16} /></Link>
             </Card>
           ))}
         </div>
@@ -314,7 +284,26 @@ function DemoSaveButton({ saved, onSave }: { saved: boolean; onSave: () => void 
   return <div className="mt-5 flex items-center justify-end gap-3">{saved ? <span className="text-sm font-bold text-brand-green">Đã lưu trên giao diện demo</span> : null}<button className="h-10 rounded-lg bg-brand-blue px-5 text-sm font-bold text-white" onClick={onSave} type="button">Lưu thay đổi</button></div>;
 }
 
-export function PortalAuthenticatedLayout({ activeItem = "Tổng quan", children }: { activeItem?: string; children: ReactNode }) {
+function resolvePortalActiveItem(pathname: string, section: string | null) {
+  if (pathname.startsWith("/customer-portal/du-an-cua-toi")) return "Dự án của tôi";
+
+  const activeItemBySection: Record<string, string> = {
+    overview: "Tổng quan",
+    apps: "Ứng dụng",
+    data: "Cấu hình hệ thống",
+    reports: "Báo cáo",
+    organization: "Tổ chức",
+    members: "Thành viên",
+    settings: "Cài đặt"
+  };
+
+  return activeItemBySection[section ?? "overview"] ?? "Tổng quan";
+}
+
+export function PortalAuthenticatedLayout({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const activeItem = resolvePortalActiveItem(pathname, searchParams.get("section"));
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
@@ -382,18 +371,18 @@ function PortalSidebar({ activeItem, mobile = false, onNavigate }: { activeItem:
                   const active = item.label === activeItem || ("active" in item && item.active && activeItem === "Tổng quan");
 
                   return (
-                  <a
-                    className={cn(
-                      "relative flex h-11 items-center gap-3 rounded-lg px-4 text-[15px] font-semibold text-brand-muted transition hover:bg-blue-50 hover:text-brand-blue",
-                      active && "bg-blue-50 text-brand-blue shadow-panel before:absolute before:left-0 before:top-2 before:h-7 before:w-1 before:rounded-r-full before:bg-brand-blue"
-                    )}
-                    href={href}
-                    key={item.label}
-                    onClick={onNavigate}
-                  >
-                    <Icon size={20} />
-                    {item.label}
-                  </a>
+                    <Link
+                      className={cn(
+                        "relative flex h-11 items-center gap-3 rounded-lg px-4 text-[15px] font-semibold text-brand-muted transition hover:bg-blue-50 hover:text-brand-blue",
+                        active && "bg-blue-50 text-brand-blue shadow-panel before:absolute before:left-0 before:top-2 before:h-7 before:w-1 before:rounded-r-full before:bg-brand-blue"
+                      )}
+                      href={href}
+                      key={item.label}
+                      onClick={onNavigate}
+                    >
+                      <Icon size={20} />
+                      {item.label}
+                    </Link>
                   );
                 })}
               </div>
@@ -509,10 +498,10 @@ function ApplicationsCard() {
                 <p className="mt-2 min-h-[42px] text-sm font-medium leading-6 text-brand-muted">{description}</p>
               </div>
             </div>
-            <a className={cn("mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-lg border text-sm font-bold", tone === "green" ? "border-green-100 bg-white/70 text-brand-green" : tone === "purple" ? "border-violet-100 bg-violet-100/40 text-violet-700" : "border-blue-100 bg-white/80 text-brand-blue")} href={title === "BESS Planner" ? "/customer-portal/du-an-cua-toi" : title === "Quick Sizing" ? "/quick-sizing" : "/customer-portal"}>
+            <Link className={cn("mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-lg border text-sm font-bold", tone === "green" ? "border-green-100 bg-white/70 text-brand-green" : tone === "purple" ? "border-violet-100 bg-violet-100/40 text-violet-700" : "border-blue-100 bg-white/80 text-brand-blue")} href={title === "BESS Planner" ? "/customer-portal/du-an-cua-toi" : title === "Quick Sizing" ? "/quick-sizing" : "/customer-portal"}>
               {action}
               <ArrowRight size={17} />
-            </a>
+            </Link>
           </div>
         ))}
       </div>
@@ -547,10 +536,10 @@ function ProjectsTable() {
     <Card className="overflow-hidden rounded-xl bg-white shadow-panel">
       <div className="flex items-center justify-between border-b border-brand-line px-4 py-4">
         <h2 className="text-xl font-bold text-brand-navy">Dự án gần đây</h2>
-        <a className="inline-flex items-center gap-2 text-sm font-bold text-brand-blue" href="/customer-portal/du-an-cua-toi">
+        <Link className="inline-flex items-center gap-2 text-sm font-bold text-brand-blue" href="/customer-portal/du-an-cua-toi">
           Xem tất cả dự án
           <ArrowRight size={17} />
-        </a>
+        </Link>
       </div>
       <table className="w-full table-fixed border-collapse text-sm">
         <thead className="bg-white text-left text-brand-muted">
@@ -608,7 +597,7 @@ function RecentActivity() {
     <Card className="rounded-xl bg-white p-4 shadow-panel">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold text-brand-navy">Hoạt động gần đây</h2>
-        <a className="text-sm font-bold text-brand-blue" href="/customer-portal">Xem tất cả</a>
+        <Link className="text-sm font-bold text-brand-blue" href="/customer-portal">Xem tất cả</Link>
       </div>
       <div className="mt-4 grid gap-4">
         {activities.map(({ detail, icon: Icon, time, title, tone }) => (
@@ -635,14 +624,14 @@ function SupportCard() {
         <div>
           <h2 className="text-xl font-bold text-brand-navy">Hỗ trợ & Liên hệ</h2>
           <p className="mt-3 text-sm font-medium leading-6 text-brand-muted">Đội ngũ DataInsight luôn sẵn sàng hỗ trợ bạn tận dụng tối đa nền tảng.</p>
-          <a className="mt-4 flex h-10 min-w-[176px] items-center justify-center gap-2 rounded-lg bg-brand-blue px-5 text-sm font-bold text-white shadow-panel" href="/lien-he">
+          <Link className="mt-4 flex h-10 min-w-[176px] items-center justify-center gap-2 rounded-lg bg-brand-blue px-5 text-sm font-bold text-white shadow-panel" href="/lien-he">
             Trung tâm hỗ trợ
             <ArrowRight size={17} />
-          </a>
-          <a className="mt-3 flex h-10 min-w-[176px] items-center justify-center gap-2 rounded-lg border border-brand-line bg-white px-5 text-sm font-bold text-brand-muted" href="/lien-he">
+          </Link>
+          <Link className="mt-3 flex h-10 min-w-[176px] items-center justify-center gap-2 rounded-lg border border-brand-line bg-white px-5 text-sm font-bold text-brand-muted" href="/lien-he">
             <Headphones size={17} />
             Liên hệ chuyên gia
-          </a>
+          </Link>
         </div>
         <SupportIllustration />
       </div>
@@ -663,10 +652,10 @@ function PlanCard() {
             </span>
           </div>
           <p className="mt-3 text-sm font-medium leading-6 text-brand-muted">Truy cập đầy đủ các ứng dụng hiện có và sắp ra mắt, cùng bộ công cụ phân tích & quản lý năng lượng toàn diện.</p>
-          <a className="mt-5 inline-flex items-center gap-2 text-base font-bold text-brand-blue" href="/bao-cao-mau">
+          <Link className="mt-5 inline-flex items-center gap-2 text-base font-bold text-brand-blue" href="/bao-cao-mau">
             Xem chi tiết gói dịch vụ
             <ArrowRight size={18} />
-          </a>
+          </Link>
         </div>
         <PlanIllustration />
       </div>
@@ -733,8 +722,8 @@ function PortalFooter() {
       <div className="flex min-h-[52px] w-full items-center justify-between px-8 text-xs font-medium text-brand-muted max-sm:px-4">
         <span>© 2026 DataInsight. All rights reserved.</span>
         <span className="flex gap-12">
-          <a href="/lien-he">Chính sách bảo mật</a>
-          <a href="/lien-he">Điều khoản sử dụng</a>
+          <Link href="/lien-he">Chính sách bảo mật</Link>
+          <Link href="/lien-he">Điều khoản sử dụng</Link>
         </span>
       </div>
     </footer>

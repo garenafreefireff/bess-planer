@@ -12,13 +12,10 @@ import { useQuickSizingStore } from "@/features/quick-sizing/data/quick-sizing-s
 import {
   analysesApi,
   bessCatalogApi,
-  datasetsApi,
-  filesApi,
   projectsApi,
   readWorkspaceApiError,
   sitesApi,
   type BessCatalogResponse,
-  type DatasetResponse,
   type SiteResponse
 } from "../api/workspace.api";
 import { ProjectBackendInfoStep as ProjectInfoStep } from "./project-backend-info-step";
@@ -28,8 +25,8 @@ const steps = [
   [2, "Upload phụ tải", "Tải dữ liệu bắt buộc"],
   [3, "Upload PV", "Dữ liệu tùy chọn"],
   [4, "Kiểm tra dữ liệu", "Xem chất lượng đầu vào"],
-  [5, "Cấu hình mô hình", "Thiết lập tham số"],
-  [6, "Xác nhận & chạy", "Kiểm tra trước phân tích"]
+  [5, "Cấu hình Sizing Lab", "Sizing, BESS và tài chính"],
+  [6, "Xác nhận & chạy", "Bắt đầu phân tích"]
 ] as const;
 
 type ProjectInfo = {
@@ -54,12 +51,83 @@ type FileInspection = {
 };
 
 type ModelConfig = {
+  emsParityVersion: string;
   objective: string;
   analysisYears: number;
   energyKwh: number;
   powerKw: number;
   optimizePeak: boolean;
   optimizeTou: boolean;
+  billingMode: "2tc" | "tou";
+  sizingMode: "auto" | "range";
+  energyMinKwh: number;
+  energyMaxKwh: number;
+  energyStepKwh: number;
+  powerMinKw: number;
+  powerMaxKw: number;
+  powerStepKw: number;
+  loadValueUnit: "kw" | "kwh";
+  pvValueUnit: "kw" | "kwh";
+  socMinPct: number;
+  socMaxPct: number;
+  socSafetyPct: number;
+  chargeEfficiencyPct: number;
+  dischargeEfficiencyPct: number;
+  batteryCostVndPerKwh: number;
+  pcsCostVndPerKw: number;
+  epcPct: number;
+  otherCostPct: number;
+  annualOpexPct: number;
+  discountRatePct: number;
+  electricityEscalationPct: number;
+  realizationRatePct: number;
+  demandChargeVndPerKwMonth: number;
+  peakPriceVndPerKwh: number;
+  normalPriceVndPerKwh: number;
+  offpeakPriceVndPerKwh: number;
+  peakWindows: string;
+  offpeakWindows: string;
+  sundayNoPeak: boolean;
+};
+
+const defaultModelConfig: ModelConfig = {
+  emsParityVersion: "tool-c-tariff-config-2026-07-25",
+  objective: "SLSM cân bằng tiết kiệm × ROI",
+  analysisYears: 10,
+  energyKwh: 1000,
+  powerKw: 500,
+  optimizePeak: true,
+  optimizeTou: true,
+  billingMode: "2tc",
+  sizingMode: "auto",
+  energyMinKwh: 250,
+  energyMaxKwh: 2000,
+  energyStepKwh: 250,
+  powerMinKw: 100,
+  powerMaxKw: 1000,
+  powerStepKw: 100,
+  loadValueUnit: "kw",
+  pvValueUnit: "kw",
+  socMinPct: 10,
+  socMaxPct: 93,
+  socSafetyPct: 5,
+  chargeEfficiencyPct: 95,
+  dischargeEfficiencyPct: 95,
+  batteryCostVndPerKwh: 5_000_000,
+  pcsCostVndPerKw: 4_000_000,
+  epcPct: 0,
+  otherCostPct: 0,
+  annualOpexPct: 2,
+  discountRatePct: 8,
+  electricityEscalationPct: 5,
+  realizationRatePct: 60,
+  demandChargeVndPerKwMonth: 285_414,
+  peakPriceVndPerKwh: 3640,
+  normalPriceVndPerKwh: 1987,
+  offpeakPriceVndPerKwh: 1300,
+  peakWindows: "17:30-22:30",
+  offpeakWindows: "00:00-06:00",
+  sundayNoPeak: true
 };
 
 const draftKey = "energyinsight.bessPlanner.projectDraft.v1";
@@ -84,7 +152,7 @@ export function BessPlannerProjectWizard() {
   const [pvFile, setPvFile] = useState<FileInspection | null>(null);
   const [loadSourceFile, setLoadSourceFile] = useState<File | null>(null);
   const [pvSourceFile, setPvSourceFile] = useState<File | null>(null);
-  const [config, setConfig] = useState<ModelConfig>({ objective: "Tối thiểu tổng chi phí vòng đời", analysisYears: 10, energyKwh: 1000, powerKw: 500, optimizePeak: true, optimizeTou: true });
+  const [config, setConfig] = useState<ModelConfig>(defaultModelConfig);
   const [sites, setSites] = useState<SiteResponse[]>([]);
   const [catalogItems, setCatalogItems] = useState<BessCatalogResponse[]>([]);
   const [resourceLoading, setResourceLoading] = useState(true);
@@ -132,10 +200,16 @@ export function BessPlannerProjectWizard() {
       setLoadSourceFile(null);
       setPvSourceFile(null);
       setConfig({
-        objective: "Tối thiểu tổng chi phí vòng đời",
+        ...defaultModelConfig,
         analysisYears: quickAssumptions.analysisYears,
         energyKwh: selectedQuickOption.energyKwh,
         powerKw: selectedQuickOption.powerKw,
+        energyMinKwh: Math.max(50, Math.round(selectedQuickOption.energyKwh * 0.5)),
+        energyMaxKwh: Math.max(100, Math.round(selectedQuickOption.energyKwh * 1.5)),
+        energyStepKwh: Math.max(50, Math.round(selectedQuickOption.energyKwh * 0.25)),
+        powerMinKw: Math.max(25, Math.round(selectedQuickOption.powerKw * 0.5)),
+        powerMaxKw: Math.max(50, Math.round(selectedQuickOption.powerKw * 1.5)),
+        powerStepKw: Math.max(25, Math.round(selectedQuickOption.powerKw * 0.25)),
         optimizePeak: quickBasicInfo.bessObjectives.includes("peak_shaving"),
         optimizeTou: quickBasicInfo.bessObjectives.includes("saving")
       });
@@ -146,11 +220,27 @@ export function BessPlannerProjectWizard() {
     const raw = window.localStorage.getItem(draftKey);
     if (raw) {
       try {
-        const draft = JSON.parse(raw) as { project?: ProjectInfo; loadFile?: FileInspection | null; pvFile?: FileInspection | null; config?: ModelConfig; currentStep?: number };
+        const draft = JSON.parse(raw) as { project?: ProjectInfo; config?: ModelConfig; currentStep?: number };
         if (draft.project) setProject({ name: "", location: "", industry: "", voltageLevel: "", timezone: "UTC+07:00 Bangkok, Hanoi, Jakarta", siteId: "", bessCatalogId: "", ...draft.project });
-        if (draft.loadFile) setLoadFile(draft.loadFile);
-        if (draft.pvFile) setPvFile(draft.pvFile);
-        if (draft.config) setConfig(draft.config);
+        if (draft.config) {
+          const legacyDraft = draft.config.emsParityVersion !== defaultModelConfig.emsParityVersion;
+          setConfig({
+            ...defaultModelConfig,
+            ...(legacyDraft ? {} : draft.config),
+            sizingMode: draft.config.sizingMode ?? defaultModelConfig.sizingMode,
+            energyKwh: draft.config.energyKwh ?? defaultModelConfig.energyKwh,
+            powerKw: draft.config.powerKw ?? defaultModelConfig.powerKw,
+            energyMinKwh: draft.config.energyMinKwh ?? defaultModelConfig.energyMinKwh,
+            energyMaxKwh: draft.config.energyMaxKwh ?? defaultModelConfig.energyMaxKwh,
+            energyStepKwh: draft.config.energyStepKwh ?? defaultModelConfig.energyStepKwh,
+            powerMinKw: draft.config.powerMinKw ?? defaultModelConfig.powerMinKw,
+            powerMaxKw: draft.config.powerMaxKw ?? defaultModelConfig.powerMaxKw,
+            powerStepKw: draft.config.powerStepKw ?? defaultModelConfig.powerStepKw,
+            objective: defaultModelConfig.objective,
+            loadValueUnit: "kw",
+            pvValueUnit: "kw"
+          });
+        }
         if (draft.currentStep) setCurrentStep(Math.min(6, Math.max(1, draft.currentStep)));
       } catch {
         window.localStorage.removeItem(draftKey);
@@ -165,15 +255,15 @@ export function BessPlannerProjectWizard() {
       suppressNextSave.current = false;
       return;
     }
-    window.localStorage.setItem(draftKey, JSON.stringify({ project, loadFile, pvFile, config, currentStep, source, selectedOptionId }));
-  }, [config, currentStep, loadFile, project, pvFile, restored, selectedOptionId, source]);
+    window.localStorage.setItem(draftKey, JSON.stringify({ project, config, currentStep, source, selectedOptionId }));
+  }, [config, currentStep, project, restored, selectedOptionId, source]);
 
   const stepValidity = useMemo(() => ({
     1: Boolean(project.name.trim() && project.location.trim() && project.industry.trim() && project.voltageLevel.trim() && project.siteId && project.bessCatalogId),
     2: Boolean(loadFile && loadFile.status !== "invalid" && loadSourceFile),
     3: true,
     4: Boolean(loadFile && loadFile.status !== "invalid" && loadSourceFile),
-    5: config.energyKwh > 0 && config.powerKw > 0 && config.analysisYears > 0,
+    5: config.energyKwh > 0 && config.powerKw > 0 && config.analysisYears > 0 && config.socMaxPct > config.socMinPct && config.chargeEfficiencyPct > 0 && config.dischargeEfficiencyPct > 0 && (config.sizingMode === "auto" || (config.energyMaxKwh >= config.energyMinKwh && config.powerMaxKw >= config.powerMinKw && config.energyStepKwh > 0 && config.powerStepKw > 0)),
     6: Boolean(loadFile && loadFile.status !== "invalid" && loadSourceFile)
   }), [config, loadFile, loadSourceFile, project]);
 
@@ -199,67 +289,23 @@ export function BessPlannerProjectWizard() {
           industry: project.industry,
           voltageLevel: project.voltageLevel,
           timezone: project.timezone,
-          objective: config.objective,
-          analysisYears: config.analysisYears,
-          energyKwh: config.energyKwh,
-          powerKw: config.powerKw,
-          optimizePeak: config.optimizePeak,
-          optimizeTou: config.optimizeTou,
+          ...config,
           source,
-          selectedOptionId,
-          loadFile,
-          pvFile
+          selectedOptionId
         },
         scenarios: [],
         dataset_ids: []
       });
       createdProjectId = createdProject.id;
 
-      const datasets: DatasetResponse[] = [];
-      setSaveStage("Đang upload dữ liệu phụ tải...");
-      const uploadedLoad = await filesApi.upload(loadSourceFile, {
-        project_id: createdProject.id,
-        kind: "load_profile"
-      });
-      setSaveStage("Đang chuẩn hóa dữ liệu phụ tải...");
-      datasets.push(await datasetsApi.create({
-        project_id: createdProject.id,
-        file_id: uploadedLoad.id,
-        dataset_type: "load_profile"
-      }));
-
-      if (pvSourceFile) {
-        setSaveStage("Đang upload dữ liệu điện mặt trời...");
-        const uploadedPv = await filesApi.upload(pvSourceFile, {
-          project_id: createdProject.id,
-          kind: "pv_profile"
-        });
-        setSaveStage("Đang chuẩn hóa dữ liệu điện mặt trời...");
-        datasets.push(await datasetsApi.create({
-          project_id: createdProject.id,
-          file_id: uploadedPv.id,
-          dataset_type: "pv_profile"
-        }));
-      }
-
-      setSaveStage("Đang kiểm tra dữ liệu cho BESS Planner...");
-      const analysisRun = await analysesApi.createBessPlanner(createdProject.id);
-      const finalProject = await projectsApi.get(createdProject.id);
-      const snapshot = {
-        project,
-        loadFile,
-        pvFile,
-        config,
-        source,
-        selectedOptionId,
-        backendProject: finalProject,
-        datasets,
-        analysisRun,
-        createdAt: Date.now()
-      };
-      window.localStorage.setItem("energyinsight.bessPlanner.lastProject.v1", JSON.stringify(snapshot));
+      setSaveStage("Đang truyền dữ liệu tạm thời và chạy Oracle LP-PF...");
+      await analysesApi.createTransientSizingLab(
+        createdProject.id,
+        loadSourceFile,
+        pvSourceFile
+      );
       window.localStorage.removeItem(draftKey);
-      toast.success("Đã tạo dự án, chuẩn hóa dataset và hoàn tất kiểm tra BESS Planner.");
+      toast.success("Đã hoàn tất Sizing Lab. File đầu vào đã được xóa sau khi xử lý.");
       router.push(`/customer-portal/du-an-cua-toi/ket-qua?projectId=${createdProject.id}`);
     } catch (error) {
       const message = readWorkspaceApiError(error);
@@ -280,21 +326,21 @@ export function BessPlannerProjectWizard() {
     setPvFile(null);
     setLoadSourceFile(null);
     setPvSourceFile(null);
-    setConfig({ objective: "Tối thiểu tổng chi phí vòng đời", analysisYears: 10, energyKwh: 1000, powerKw: 500, optimizePeak: true, optimizeTou: true });
+    setConfig(defaultModelConfig);
   };
 
   return (
     <main className="w-full pb-8 pt-7">
       <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-brand-muted"><span>Customer Portal</span><ArrowRight size={14} /><span>Dự án của tôi</span><ArrowRight size={14} /><span className="text-brand-navy">Tạo dự án</span></div>
-      <div className="mt-4 flex flex-wrap items-start justify-between gap-5"><div><h1 className="text-[34px] font-bold text-brand-navy">Tạo dự án BESS Planner</h1><p className="mt-2 text-sm font-medium text-brand-muted">Hoàn thành sáu bước để chuẩn bị bộ dữ liệu và cấu hình phân tích.</p></div><div className="flex flex-wrap items-center gap-3">{source === "quick-sizing" ? <span className="rounded-full bg-green-50 px-4 py-2 text-sm font-bold text-brand-green">Đã kế thừa cấu hình từ Quick Sizing</span> : null}<button className={buttonVariants({ variant: "secondary", size: "sm" })} onClick={clearDraft} type="button"><Trash2 size={16} />Xóa bản nháp</button></div></div>
+      <div className="mt-4 flex flex-wrap items-start justify-between gap-5"><div><h1 className="text-[34px] font-bold text-brand-navy">Tạo dự án Sizing Lab</h1><p className="mt-2 text-sm font-medium text-brand-muted">Hoàn thành sáu bước để chuẩn bị bộ dữ liệu và cấu hình phân tích.</p></div><div className="flex flex-wrap items-center gap-3">{source === "quick-sizing" ? <span className="rounded-full bg-green-50 px-4 py-2 text-sm font-bold text-brand-green">Đã kế thừa cấu hình từ Quick Sizing</span> : null}<button className={buttonVariants({ variant: "secondary", size: "sm" })} onClick={clearDraft} type="button"><Trash2 size={16} />Xóa bản nháp</button></div></div>
 
       <WizardStepper currentStep={currentStep} validSteps={stepValidity} onStep={setCurrentStep} />
 
       <div className="mt-4 grid grid-cols-[minmax(0,1fr)_360px] gap-5 max-xl:grid-cols-1">
         <Card className="rounded-xl bg-white p-5 shadow-panel">
           {currentStep === 1 ? <ProjectInfoStep value={project} onChange={setProject} sites={sites} catalogItems={catalogItems} loading={resourceLoading} /> : null}
-          {currentStep === 2 ? <UploadStep title="Dữ liệu phụ tải" required description="Tải file CSV/XLSX chứa timestamp và công suất/điện năng. File sẽ được upload và chuẩn hóa trên backend khi tạo dự án." file={loadFile} sourceFile={loadSourceFile} onFile={setLoadFile} onSourceFile={setLoadSourceFile} /> : null}
-          {currentStep === 3 ? <UploadStep title="Dữ liệu điện mặt trời" description="Bỏ qua bước này nếu dự án chưa có hệ thống PV hoặc chưa có chuỗi dữ liệu thực tế." file={pvFile} sourceFile={pvSourceFile} onFile={setPvFile} onSourceFile={setPvSourceFile} /> : null}
+          {currentStep === 2 ? <UploadStep title="Dữ liệu phụ tải" required description="Hỗ trợ timestamp hoặc định dạng EMS date_iso/day_index + step + P_load_kW + P_pv_kW. File EMS kết hợp sẽ được tự tách Load/PV." file={loadFile} sourceFile={loadSourceFile} onFile={setLoadFile} onSourceFile={setLoadSourceFile} /> : null}
+          {currentStep === 3 ? <UploadStep title="Dữ liệu điện mặt trời" description="Có thể bỏ qua nếu file phụ tải ở bước trước đã chứa cột P_pv_kW; hệ thống sẽ tự tách dữ liệu PV." file={pvFile} sourceFile={pvSourceFile} onFile={setPvFile} onSourceFile={setPvSourceFile} /> : null}
           {currentStep === 4 ? <QualityStep loadFile={loadFile} pvFile={pvFile} /> : null}
           {currentStep === 5 ? <ModelConfigStep value={config} onChange={setConfig} /> : null}
           {currentStep === 6 ? <ReviewStep project={project} loadFile={loadFile} pvFile={pvFile} config={config} /> : null}
@@ -304,8 +350,8 @@ export function BessPlannerProjectWizard() {
 
       <div className="mt-4 grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-xl border border-brand-line bg-white p-3 shadow-panel max-md:grid-cols-1">
         <button className={buttonVariants({ variant: "secondary", className: "h-11" })} disabled={currentStep === 1} onClick={() => setCurrentStep((step) => Math.max(1, step - 1))} type="button"><ArrowLeft size={17} />Quay lại</button>
-        <span className="text-center text-sm font-semibold text-brand-muted">Bước {currentStep}/6 · Dữ liệu được lưu nháp trên trình duyệt</span>
-        {currentStep < 6 ? <button className={buttonVariants({ className: "h-11 px-7" })} disabled={!stepValidity[currentStep as keyof typeof stepValidity]} onClick={goNext} type="button">Tiếp tục<ArrowRight size={18} /></button> : <button className={buttonVariants({ variant: "green", className: "h-11 px-7" })} disabled={!stepValidity[6] || isSaving} onClick={() => void finish()} type="button">{isSaving ? <LoaderCircle className="animate-spin" size={18} /> : <Zap size={18} />}{isSaving ? saveStage || "Đang xử lý..." : "Lưu dự án & mở kết quả"}</button>}
+        <span className="text-center text-sm font-semibold text-brand-muted">Bước {currentStep}/6 · Chỉ thông tin dự án và cấu hình được lưu nháp</span>
+        {currentStep < 6 ? <button className={buttonVariants({ className: "h-11 px-7" })} disabled={!stepValidity[currentStep as keyof typeof stepValidity]} onClick={goNext} type="button">Tiếp tục<ArrowRight size={18} /></button> : <button className={buttonVariants({ variant: "green", className: "h-11 px-7" })} disabled={!stepValidity[6] || isSaving} onClick={() => void finish()} type="button">{isSaving ? <LoaderCircle className="animate-spin" size={18} /> : <Zap size={18} />}{isSaving ? saveStage || "Đang xử lý..." : "Chạy Sizing Lab"}</button>}
       </div>
     </main>
   );
@@ -346,15 +392,60 @@ function QualityStep({ loadFile, pvFile }: { loadFile: FileInspection | null; pv
 }
 
 function ModelConfigStep({ value, onChange }: { value: ModelConfig; onChange: (value: ModelConfig) => void }) {
-  return <section><h2 className="text-xl font-bold text-brand-navy">5. Cấu hình mô hình</h2><p className="mt-2 text-sm font-medium text-brand-muted">Cấu hình này được lưu cùng bản nháp và sẽ đi theo dự án sang màn hình kết quả demo.</p><div className="mt-5 grid grid-cols-2 gap-4 max-md:grid-cols-1"><SelectField label="Mục tiêu tối ưu" required value={value.objective} onChange={(objective) => onChange({ ...value, objective })} options={["Tối thiểu tổng chi phí vòng đời", "Tối đa NPV", "Tối thiểu Pmax hợp đồng", "Tối đa tỷ lệ tự dùng PV"]} /><SelectField label="Thời hạn phân tích" required value={String(value.analysisYears)} onChange={(analysisYears) => onChange({ ...value, analysisYears: Number(analysisYears) })} options={["5", "10", "15"]} /><NumberField label="Dung lượng tham chiếu" unit="kWh" value={value.energyKwh} onChange={(energyKwh) => onChange({ ...value, energyKwh })} /><NumberField label="Công suất tham chiếu" unit="kW" value={value.powerKw} onChange={(powerKw) => onChange({ ...value, powerKw })} /></div><div className="mt-5 grid grid-cols-2 gap-3 max-md:grid-cols-1"><ToggleCard title="Tối ưu Peak Shaving" description="Đưa chi phí công suất và Pmax vào mục tiêu." checked={value.optimizePeak} onChange={(optimizePeak) => onChange({ ...value, optimizePeak })} /><ToggleCard title="Tối ưu biểu giá TOU" description="Dịch chuyển năng lượng giữa thấp điểm và cao điểm." checked={value.optimizeTou} onChange={(optimizeTou) => onChange({ ...value, optimizeTou })} /></div></section>;
+  const energyCount = Math.max(1, Math.floor((value.energyMaxKwh - value.energyMinKwh) / Math.max(value.energyStepKwh, 1)) + 1);
+  const powerCount = Math.max(1, Math.floor((value.powerMaxKw - value.powerMinKw) / Math.max(value.powerStepKw, 1)) + 1);
+  const candidateCount = value.sizingMode === "auto" ? 15 : Math.min(120, energyCount * powerCount);
+
+  return (
+    <section>
+      <h2 className="text-xl font-bold text-brand-navy">5. Cấu hình Sizing Lab</h2>
+      <p className="mt-2 text-sm font-medium text-brand-muted">Thiết lập phạm vi candidate, giới hạn BESS, biểu giá và giả định tài chính dùng cho phân tích.</p>
+
+      <div className="mt-5 grid gap-4">
+        <Card className="rounded-xl p-4 shadow-none">
+          <h3 className="font-bold text-brand-navy">A. Phạm vi công suất và dung lượng</h3>
+          <div className="mt-4 grid grid-cols-2 gap-4 max-md:grid-cols-1">
+            <SelectField label="Chế độ sizing" value={value.sizingMode} onChange={(sizingMode) => onChange({ ...value, sizingMode: sizingMode as ModelConfig["sizingMode"] })} options={["auto", "range"]} />
+            <SelectField label="Phương pháp chọn" required value={value.objective} onChange={(objective) => onChange({ ...value, objective })} options={["SLSM cân bằng tiết kiệm × ROI"]} />
+            <NumberField label="Dung lượng tham chiếu" unit="kWh" value={value.energyKwh} onChange={(energyKwh) => onChange({ ...value, energyKwh })} />
+            <NumberField label="Công suất tham chiếu" unit="kW" value={value.powerKw} onChange={(powerKw) => onChange({ ...value, powerKw })} />
+          </div>
+          {value.sizingMode === "range" ? <div className="mt-4 grid grid-cols-3 gap-3 max-lg:grid-cols-2 max-sm:grid-cols-1"><NumberField label="E tối thiểu" unit="kWh" value={value.energyMinKwh} onChange={(energyMinKwh) => onChange({ ...value, energyMinKwh })} /><NumberField label="E tối đa" unit="kWh" value={value.energyMaxKwh} onChange={(energyMaxKwh) => onChange({ ...value, energyMaxKwh })} /><NumberField label="Bước E" unit="kWh" value={value.energyStepKwh} onChange={(energyStepKwh) => onChange({ ...value, energyStepKwh })} /><NumberField label="P tối thiểu" unit="kW" value={value.powerMinKw} onChange={(powerMinKw) => onChange({ ...value, powerMinKw })} /><NumberField label="P tối đa" unit="kW" value={value.powerMaxKw} onChange={(powerMaxKw) => onChange({ ...value, powerMaxKw })} /><NumberField label="Bước P" unit="kW" value={value.powerStepKw} onChange={(powerStepKw) => onChange({ ...value, powerStepKw })} /></div> : null}
+          <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-semibold text-brand-blue">Dự kiến phân tích {candidateCount} phương án BESS.</div>
+        </Card>
+
+        <Card className="rounded-xl p-4 shadow-none">
+          <h3 className="font-bold text-brand-navy">B. Dữ liệu và thông số BESS</h3>
+          <div className="mt-4 grid grid-cols-2 gap-4 max-md:grid-cols-1"><SelectField label="Đơn vị dữ liệu Load (EMS)" value={value.loadValueUnit} onChange={(loadValueUnit) => onChange({ ...value, loadValueUnit: loadValueUnit as ModelConfig["loadValueUnit"] })} options={["kw"]} /><SelectField label="Đơn vị dữ liệu PV (EMS)" value={value.pvValueUnit} onChange={(pvValueUnit) => onChange({ ...value, pvValueUnit: pvValueUnit as ModelConfig["pvValueUnit"] })} options={["kw"]} /><NumberField label="SOC tối thiểu" unit="%" value={value.socMinPct} onChange={(socMinPct) => onChange({ ...value, socMinPct })} /><NumberField label="SOC tối đa" unit="%" value={value.socMaxPct} onChange={(socMaxPct) => onChange({ ...value, socMaxPct })} /><NumberField label="SOC safety buffer" unit="%" value={value.socSafetyPct} onChange={(socSafetyPct) => onChange({ ...value, socSafetyPct })} /><NumberField label="Hiệu suất sạc" unit="%" value={value.chargeEfficiencyPct} onChange={(chargeEfficiencyPct) => onChange({ ...value, chargeEfficiencyPct })} /><NumberField label="Hiệu suất xả" unit="%" value={value.dischargeEfficiencyPct} onChange={(dischargeEfficiencyPct) => onChange({ ...value, dischargeEfficiencyPct })} /></div>
+          <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-medium text-brand-muted">Oracle LP-PF tự tối ưu dispatch theo biểu giá đã chọn; không dùng các hệ số Peak/TOU ước lượng.</div>
+        </Card>
+
+        <Card className="rounded-xl p-4 shadow-none">
+          <h3 className="font-bold text-brand-navy">C. Biểu giá điện</h3>
+          <div className="mt-4 grid grid-cols-2 gap-4 max-md:grid-cols-1"><SelectField label="Chế độ biểu giá" value={value.billingMode} onChange={(billingMode) => onChange({ ...value, billingMode: billingMode as ModelConfig["billingMode"] })} options={["2tc", "tou"]} /><NumberField label="Giá cao điểm" unit="đ/kWh" value={value.peakPriceVndPerKwh} onChange={(peakPriceVndPerKwh) => onChange({ ...value, peakPriceVndPerKwh })} /><NumberField label="Giá bình thường" unit="đ/kWh" value={value.normalPriceVndPerKwh} onChange={(normalPriceVndPerKwh) => onChange({ ...value, normalPriceVndPerKwh })} /><NumberField label="Giá thấp điểm" unit="đ/kWh" value={value.offpeakPriceVndPerKwh} onChange={(offpeakPriceVndPerKwh) => onChange({ ...value, offpeakPriceVndPerKwh })} /><NumberField label="Phí công suất" unit="đ/kW-tháng" value={value.demandChargeVndPerKwMonth} onChange={(demandChargeVndPerKwMonth) => onChange({ ...value, demandChargeVndPerKwMonth })} /><TextField label="Khung cao điểm" value={value.peakWindows} onChange={(peakWindows) => onChange({ ...value, peakWindows })} /><TextField label="Khung thấp điểm" value={value.offpeakWindows} onChange={(offpeakWindows) => onChange({ ...value, offpeakWindows })} /></div>
+          <div className="mt-4"><ToggleCard title="Chủ nhật không có giờ cao điểm" description="Đúng quy tắc lịch đang dùng trong EMS Sizing Lab." checked={value.sundayNoPeak} onChange={(sundayNoPeak) => onChange({ ...value, sundayNoPeak })} /></div>
+        </Card>
+
+        <Card className="rounded-xl p-4 shadow-none">
+          <h3 className="font-bold text-brand-navy">D. Chi phí đầu tư</h3>
+          <div className="mt-4 grid grid-cols-2 gap-4 max-md:grid-cols-1"><NumberField label="Chi phí battery" unit="đ/kWh" value={value.batteryCostVndPerKwh} onChange={(batteryCostVndPerKwh) => onChange({ ...value, batteryCostVndPerKwh })} /><NumberField label="Chi phí PCS" unit="đ/kW" value={value.pcsCostVndPerKw} onChange={(pcsCostVndPerKw) => onChange({ ...value, pcsCostVndPerKw })} /><NumberField label="OPEX hằng năm" unit="% CAPEX" value={value.annualOpexPct} onChange={(annualOpexPct) => onChange({ ...value, annualOpexPct })} /></div>
+        </Card>
+
+        <Card className="rounded-xl p-4 shadow-none">
+          <h3 className="font-bold text-brand-navy">E. Giả định tài chính</h3>
+          <div className="mt-4 grid grid-cols-2 gap-4 max-md:grid-cols-1"><SelectField label="Thời hạn phân tích" required value={String(value.analysisYears)} onChange={(analysisYears) => onChange({ ...value, analysisYears: Number(analysisYears) })} options={["5", "10", "15"]} /><NumberField label="Tỷ lệ chiết khấu" unit="%" value={value.discountRatePct} onChange={(discountRatePct) => onChange({ ...value, discountRatePct })} /><NumberField label="Tỷ lệ hiện thực hóa" unit="%" value={value.realizationRatePct} onChange={(realizationRatePct) => onChange({ ...value, realizationRatePct })} /></div>
+        </Card>
+      </div>
+    </section>
+  );
 }
 
 function ReviewStep({ project, loadFile, pvFile, config }: { project: ProjectInfo; loadFile: FileInspection | null; pvFile: FileInspection | null; config: ModelConfig }) {
-  return <section><h2 className="text-xl font-bold text-brand-navy">6. Xác nhận trước khi chạy</h2><p className="mt-2 text-sm font-medium text-brand-muted">Kiểm tra lại dữ liệu. Khi xác nhận, dự án sẽ được tạo, file gốc được upload và dataset được chuẩn hóa trên backend.</p><div className="mt-5 grid grid-cols-2 gap-4 max-lg:grid-cols-1"><ReviewCard title="Dự án" rows={[["Tên", project.name], ["Địa điểm", project.location], ["Ngành", project.industry], ["Điện áp", project.voltageLevel]]} /><ReviewCard title="Dữ liệu" rows={[["Phụ tải", loadFile?.name || "Chưa có"], ["Trạng thái", loadFile?.status || "Chưa kiểm tra"], ["PV", pvFile?.name || "Không sử dụng"]]} /><ReviewCard title="Cấu hình" rows={[["Mục tiêu", config.objective], ["Thời hạn", `${config.analysisYears} năm`], ["Sizing tham chiếu", `${formatNumber(config.powerKw, 0)} kW / ${formatNumber(config.energyKwh, 0)} kWh`], ["Peak shaving", config.optimizePeak ? "Có" : "Không"], ["TOU", config.optimizeTou ? "Có" : "Không"]]} /></div><div className="mt-5 flex gap-3 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm font-medium leading-6 text-brand-blue"><Info className="shrink-0" size={20} /><span>Dự án, file gốc và kết quả kiểm tra dataset sẽ được lưu trên backend. BESS Planner optimizer chưa chạy ở bước này.</span></div></section>;
+  return <section><h2 className="text-xl font-bold text-brand-navy">6. Xác nhận trước khi chạy</h2><p className="mt-2 text-sm font-medium text-brand-muted">Kiểm tra lại dữ liệu. Khi xác nhận, file chỉ được truyền tạm thời để chạy Sizing Lab và sẽ bị xóa ngay sau khi xử lý.</p><div className="mt-5 grid grid-cols-2 gap-4 max-lg:grid-cols-1"><ReviewCard title="Dự án" rows={[["Tên", project.name], ["Địa điểm", project.location], ["Ngành", project.industry], ["Điện áp", project.voltageLevel]]} /><ReviewCard title="Dữ liệu" rows={[["Phụ tải", loadFile?.name || "Chưa có"], ["Trạng thái", loadFile?.status || "Chưa kiểm tra"], ["PV", pvFile?.name || "Không sử dụng"]]} /><ReviewCard title="Cấu hình" rows={[["Mục tiêu", config.objective], ["Thời hạn", `${config.analysisYears} năm`], ["Sizing tham chiếu", `${formatNumber(config.powerKw, 0)} kW / ${formatNumber(config.energyKwh, 0)} kWh`], ["Biểu giá", config.billingMode === "2tc" ? "2TC — TOU + công suất" : "TOU-only"], ["Chọn phương án", "Pareto + SLSM"]]} /></div><div className="mt-5 flex gap-3 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm font-medium leading-6 text-brand-blue"><Info className="shrink-0" size={20} /><span>Backend chỉ lưu dự án, cấu hình và kết quả Sizing Lab. File Load/PV không được lưu vào storage hoặc MongoDB.</span></div></section>;
 }
 
 function WizardSidebar({ currentStep, project, loadFile, config }: { currentStep: number; project: ProjectInfo; loadFile: FileInspection | null; config: ModelConfig }) {
-  return <aside className="sticky top-24 h-fit"><Card className="rounded-xl bg-white p-5 shadow-panel"><h2 className="text-lg font-bold text-brand-navy">Tóm tắt dự án</h2><div className="mt-4 grid gap-3"><SummaryRow label="Bước hiện tại" value={`${currentStep}/6`} /><SummaryRow label="Tên dự án" value={project.name || "Chưa nhập"} /><SummaryRow label="Phụ tải" value={loadFile?.name || "Chưa có file"} /><SummaryRow label="Cấu hình" value={`${formatNumber(config.powerKw, 0)} kW / ${formatNumber(config.energyKwh, 0)} kWh`} /><SummaryRow label="Thời hạn" value={`${config.analysisYears} năm`} /></div><div className="mt-5 rounded-xl bg-blue-50 p-4 text-xs font-medium leading-5 text-brand-muted"><Settings2 className="mb-2 text-brand-blue" size={20} />Dữ liệu nháp được lưu trên trình duyệt để có thể tiếp tục sau khi tải lại trang.</div></Card></aside>;
+  return <aside className="sticky top-24 h-fit"><Card className="rounded-xl bg-white p-5 shadow-panel"><h2 className="text-lg font-bold text-brand-navy">Tóm tắt dự án</h2><div className="mt-4 grid gap-3"><SummaryRow label="Bước hiện tại" value={`${currentStep}/6`} /><SummaryRow label="Tên dự án" value={project.name || "Chưa nhập"} /><SummaryRow label="Phụ tải" value={loadFile?.name || "Chưa có file"} /><SummaryRow label="Cấu hình" value={`${formatNumber(config.powerKw, 0)} kW / ${formatNumber(config.energyKwh, 0)} kWh`} /><SummaryRow label="Thời hạn" value={`${config.analysisYears} năm`} /></div><div className="mt-5 rounded-xl bg-blue-50 p-4 text-xs font-medium leading-5 text-brand-muted"><Settings2 className="mb-2 text-brand-blue" size={20} />Chỉ thông tin dự án và cấu hình được lưu nháp. File Load/PV phải được chọn lại và không được lưu trên trình duyệt.</div></Card></aside>;
 }
 
 async function inspectFile(file: File): Promise<FileInspection> {
@@ -373,21 +464,42 @@ async function inspectFile(file: File): Promise<FileInspection> {
   if (lines.length < 2) return { name: file.name, sizeLabel: formatFileSize(file.size), extension, rowCount: Math.max(0, lines.length - 1), headers: lines[0]?.split(",") ?? [], preview: [], status: "invalid", messages: [...messages, "CSV cần có header và ít nhất một dòng dữ liệu."] };
   const delimiter = lines[0].includes(";") && !lines[0].includes(",") ? ";" : ",";
   const headers = lines[0].split(delimiter).map((item) => item.trim());
-  const normalizedHeaders = headers.map((item) => item.toLowerCase());
-  const hasTime = normalizedHeaders.some((item) => ["timestamp", "time", "datetime", "date_time", "thoi_gian"].includes(item));
-  const hasValue = normalizedHeaders.some((item) => ["value", "kw", "kwh", "power", "energy", "cong_suat", "dien_nang"].includes(item));
-  if (!hasTime) messages.push("Không nhận diện được cột thời gian phổ biến.");
+  const normalizedHeaders = headers.map(normalizeDatasetHeader);
+  const hasTimestamp = normalizedHeaders.some((item) => ["timestamp", "time", "datetime", "date_time", "thoi_gian"].includes(item));
+  const hasDayIndexStep = normalizedHeaders.includes("day_index") && normalizedHeaders.includes("step");
+  const hasDateStep = normalizedHeaders.some((item) => ["date_iso", "date"].includes(item)) && normalizedHeaders.includes("step");
+  const hasIndexedTime = hasDayIndexStep || hasDateStep;
+  const hasLoadValue = normalizedHeaders.some((item) => ["p_load_kw", "load_kw", "p_load", "load", "demand", "cong_suat"].includes(item));
+  const hasPvValue = normalizedHeaders.some((item) => ["p_pv_kw", "pv_kw", "p_pv", "pv", "pv_power", "solar_kw"].includes(item));
+  const hasGenericValue = normalizedHeaders.some((item) => ["value", "kw", "kwh", "power", "energy", "dien_nang"].includes(item));
+  const hasTime = hasTimestamp || hasIndexedTime;
+  const hasValue = hasLoadValue || hasPvValue || hasGenericValue;
+  if (!hasTime) messages.push("Không nhận diện được timestamp hoặc cặp day_index + step.");
   if (!hasValue) messages.push("Không nhận diện được cột công suất/điện năng phổ biến.");
+  if (hasDayIndexStep) messages.push("Đã nhận diện định dạng EMS: day_index + step, 96 bước/ngày.");
+  if (hasDateStep) messages.push("Đã nhận diện định dạng EMS: date_iso + step, 96 bước/ngày.");
+  if (hasLoadValue && hasPvValue) messages.push("File chứa đồng thời P_load_kW và P_pv_kW; hệ thống sẽ tự tách Load/PV.");
   const preview = lines.slice(1, 6).map((line) => line.split(delimiter).map((item) => item.trim()));
   const inconsistent = preview.some((row) => row.length !== headers.length);
   if (inconsistent) messages.push("Một số dòng preview có số cột không khớp header.");
-  const invalid = inconsistent || headers.length < 2;
-  return { name: file.name, sizeLabel: formatFileSize(file.size), extension, rowCount: lines.length - 1, headers, preview, status: invalid ? "invalid" : messages.length > 0 ? "warning" : "valid", messages: messages.length > 0 ? messages : ["Cấu trúc CSV hợp lệ ở mức kiểm tra frontend."] };
+  const invalid = inconsistent || headers.length < 2 || !hasTime || !hasValue;
+  return { name: file.name, sizeLabel: formatFileSize(file.size), extension, rowCount: lines.length - 1, headers, preview, status: invalid ? "invalid" : "valid", messages: messages.length > 0 ? messages : ["Cấu trúc CSV hợp lệ ở mức kiểm tra frontend."] };
+}
+
+function normalizeDatasetHeader(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
 }
 
 function formatFileSize(size: number) { return size >= 1024 * 1024 ? `${(size / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(size / 1024))} KB`; }
 function SelectField({ label, value, onChange, options, required }: { label: string; value: string; onChange: (value: string) => void; options: string[]; required?: boolean }) { return <label className="grid gap-2 text-sm font-bold text-brand-navy">{label} {required ? <span className="text-red-500">*</span> : null}<select className="h-11 rounded-lg border border-brand-line bg-white px-4 text-sm font-medium outline-none focus:border-brand-blue" onChange={(event) => onChange(event.target.value)} required={required} value={value}>{options.map((option) => <option disabled={option === ""} key={option || "empty"} value={option}>{option || "Chọn giá trị"}</option>)}</select></label>; }
-function NumberField({ label, unit, value, onChange }: { label: string; unit: string; value: number; onChange: (value: number) => void }) { return <label className="grid gap-2 text-sm font-bold text-brand-navy">{label}<span className="grid grid-cols-[1fr_100px]"><input className="h-11 rounded-l-lg border border-r-0 border-brand-line px-4 text-right text-sm font-medium outline-none focus:border-brand-blue" min={1} onChange={(event) => onChange(Math.max(1, Number(event.target.value)))} type="number" value={value} /><span className="grid h-11 place-items-center rounded-r-lg border border-brand-line bg-slate-50 text-xs text-brand-muted">{unit}</span></span></label>; }
+function NumberField({ label, unit, value, onChange }: { label: string; unit: string; value: number; onChange: (value: number) => void }) { return <label className="grid gap-2 text-sm font-bold text-brand-navy">{label}<span className="grid grid-cols-[1fr_100px]"><input className="h-11 rounded-l-lg border border-r-0 border-brand-line px-4 text-right text-sm font-medium outline-none focus:border-brand-blue" min={0} step="any" onChange={(event) => onChange(Math.max(0, Number(event.target.value)))} type="number" value={value} /><span className="grid h-11 place-items-center rounded-r-lg border border-brand-line bg-slate-50 text-xs text-brand-muted">{unit}</span></span></label>; }
+function TextField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) { return <label className="grid gap-2 text-sm font-bold text-brand-navy">{label}<input className="h-11 rounded-lg border border-brand-line bg-white px-4 text-sm font-medium outline-none focus:border-brand-blue" onChange={(event) => onChange(event.target.value)} type="text" value={value} /></label>; }
 function ToggleCard({ title, description, checked, onChange }: { title: string; description: string; checked: boolean; onChange: (checked: boolean) => void }) { return <button className={cn("grid grid-cols-[1fr_auto] items-center gap-3 rounded-xl border p-4 text-left", checked ? "border-brand-blue bg-blue-50" : "border-brand-line")} onClick={() => onChange(!checked)} type="button"><span><strong className="block text-sm text-brand-navy">{title}</strong><small className="mt-1 block text-xs font-medium text-brand-muted">{description}</small></span><span className={cn("h-6 w-11 rounded-full p-1", checked ? "bg-brand-blue" : "bg-slate-300")}><span className={cn("block size-4 rounded-full bg-white transition", checked && "translate-x-5")} /></span></button>; }
 function StatusBadge({ file }: { file: FileInspection | null }) { if (!file) return <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-brand-muted">Chưa có dữ liệu</span>; const label = file.status === "valid" ? "Hợp lệ" : file.status === "warning" ? "Có cảnh báo" : "Không hợp lệ"; return <span className={cn("rounded-full px-3 py-1 text-xs font-bold", file.status === "valid" ? "bg-green-50 text-brand-green" : file.status === "warning" ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-600")}>{label}</span>; }
 function QualityMetric({ label, value }: { label: string; value: string }) { return <span className="rounded-lg bg-slate-50 p-3"><small className="block text-xs font-semibold text-brand-muted">{label}</small><strong className="mt-1 block break-words text-sm text-brand-navy">{value}</strong></span>; }

@@ -268,6 +268,21 @@ class BessPlannerAnalysisRequest(BaseModel):
     project_id: ObjectIdStr
 
 
+class ApplySizingSelectionRequest(BaseModel):
+    candidate_id: str = Field(min_length=1, max_length=120)
+    create_scenario: bool = True
+
+
+class ApplySizingSelectionResponse(BaseModel):
+    project_id: str
+    analysis_run_id: str
+    candidate_id: str
+    energy_kwh: float
+    power_kw: float
+    contract_pmax_kw: float
+    scenario_created: bool
+
+
 class AnalysisRunResponse(BaseModel):
     id: str | None = None
     user_id: str | None = None

@@ -22,9 +22,11 @@ import {
   Zap
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useAuthStore } from "@/features/auth/store/auth.store";
+import { leadsApi, readLeadApiError } from "@/lib/api/leads.api";
 import { cn } from "@/lib/utils";
 import { buildQuickSizingResultFromAssumptions, formatNumber, formatVnd, type QuickSizingAssumptions } from "../data/quick-sizing-model";
 import type { QuickSizingStep1FormValues } from "../data/quick-sizing-step1-schema";
@@ -33,18 +35,22 @@ import { useQuickSizingStore } from "../data/quick-sizing-store";
 
 type LeadForm = {
   name: string;
+  company: string;
   email: string;
   phone: string;
   acceptedTerms: boolean;
   acceptedMarketing: boolean;
+  acceptedTraining: boolean;
 };
 
 const initialLeadForm: LeadForm = {
   name: "",
+  company: "",
   email: "",
   phone: "",
   acceptedTerms: false,
-  acceptedMarketing: false
+  acceptedMarketing: false,
+  acceptedTraining: false
 };
 
 export function QuickSizingResultFlow() {
@@ -56,6 +62,8 @@ export function QuickSizingResultFlow() {
   const selectOption = useQuickSizingStore((state) => state.selectOption);
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState("");
+  const [reportUnlocked, setReportUnlocked] = useState(false);
+  const [resultCode, setResultCode] = useState("");
 
   const result = useMemo(() => buildQuickSizingResultFromAssumptions(assumptions, basicInfo), [assumptions, basicInfo]);
   const options = useMemo(() => representativeOptions(result), [result]);
@@ -64,6 +72,16 @@ export function QuickSizingResultFlow() {
     ?? selectedFromStore
     ?? result.candidates[0]
     ?? null;
+  const reportFingerprint = useMemo(
+    () => quickSizingFingerprint(analysisRun?.id ?? null, basicInfo, assumptions),
+    [analysisRun?.id, assumptions, basicInfo]
+  );
+
+  useEffect(() => {
+    const savedCode = window.localStorage.getItem(`energyinsight.quickSizing.unlocked.${reportFingerprint}`);
+    setReportUnlocked(Boolean(savedCode));
+    setResultCode(savedCode ?? "");
+  }, [reportFingerprint]);
 
   const notify = (message: string) => {
     setActionMessage(message);
@@ -101,7 +119,7 @@ export function QuickSizingResultFlow() {
           <div className="flex flex-wrap items-center gap-3"><h1 className="text-[34px] font-bold text-brand-navy">Kết quả Quick Sizing</h1><span className="rounded-full bg-green-50 px-3 py-1 text-sm font-bold text-brand-green">Đã tính xong</span></div>
           <p className="mt-2 max-w-[820px] text-sm font-medium leading-6 text-brand-muted">Kết quả được tính từ bộ giả định Bước 2 bằng result engine độc lập: candidate grid, dispatch không double count, FCFF, NPV, IRR, payback, Pareto và confidence.</p>
         </div>
-        <div className="flex flex-wrap gap-2"><Link className={buttonVariants({ variant: "secondary", className: "h-10" })} href="/quick-sizing/gia-dinh">Chỉnh sửa giả định</Link><button className={buttonVariants({ variant: "secondary", className: "h-10" })} onClick={saveResult} type="button"><Bookmark size={16} />Lưu kết quả</button><button className={buttonVariants({ variant: "secondary", className: "h-10" })} onClick={() => void shareResult()} type="button"><Share2 size={16} />Chia sẻ</button></div>
+        <div className="flex flex-wrap gap-2"><Link className={buttonVariants({ variant: "secondary", className: "h-10" })} href="/quick-sizing/gia-dinh">Chỉnh sửa giả định</Link>{reportUnlocked ? <><button className={buttonVariants({ variant: "secondary", className: "h-10" })} onClick={saveResult} type="button"><Bookmark size={16} />Lưu kết quả</button><button className={buttonVariants({ variant: "secondary", className: "h-10" })} onClick={() => void shareResult()} type="button"><Share2 size={16} />Chia sẻ</button></> : null}</div>
       </div>
 
       {actionMessage ? <div className="mt-3 rounded-lg border border-green-100 bg-green-50 px-4 py-2 text-sm font-bold text-brand-green">{actionMessage}</div> : null}
@@ -109,15 +127,35 @@ export function QuickSizingResultFlow() {
       <ContextBar analysisRun={analysisRun} scenario={scenario} result={result} basicInfo={basicInfo} />
 
       {selected ? (
-        <UnifiedResultDashboard
-          effectiveWaccPct={assumptions.waccPct}
-          assumptions={assumptions}
-          onSelectCandidate={setSelectedCandidateId}
-          onSelectRepresentative={selectRepresentative}
-          options={options}
-          result={result}
-          selected={selected}
-        />
+        reportUnlocked ? (
+          <>
+            {resultCode ? <div className="mt-4 rounded-lg border border-green-100 bg-green-50 px-4 py-3 text-sm font-bold text-brand-green">Báo cáo đầy đủ đã mở · Mã kết quả {resultCode}</div> : null}
+            <UnifiedResultDashboard
+              effectiveWaccPct={assumptions.waccPct}
+              assumptions={assumptions}
+              onSelectCandidate={setSelectedCandidateId}
+              onSelectRepresentative={selectRepresentative}
+              options={options}
+              result={result}
+              selected={selected}
+            />
+          </>
+        ) : (
+          <QuickSizingLeadGate
+            analysisRunId={analysisRun?.id ?? null}
+            assumptions={assumptions}
+            basicInfo={basicInfo}
+            candidate={selected}
+            onUnlocked={(code) => {
+              window.localStorage.setItem(`energyinsight.quickSizing.unlocked.${reportFingerprint}`, code);
+              setResultCode(code);
+              setReportUnlocked(true);
+            }}
+            result={result}
+            scenario={scenario}
+            selectedOptionId={selectedOptionId}
+          />
+        )
       ) : (
         <Card className="mt-4 rounded-xl bg-white p-5 shadow-panel">
           <h2 className="text-xl font-bold text-brand-navy">Không có candidate hợp lệ</h2>
@@ -125,7 +163,7 @@ export function QuickSizingResultFlow() {
         </Card>
       )}
 
-      {selected ? (
+      {selected && reportUnlocked ? (
         <div className="mt-5 grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-xl border border-brand-line bg-white p-3 shadow-panel max-lg:grid-cols-1">
           <Link className={buttonVariants({ variant: "secondary", className: "h-11" })} href="/quick-sizing/gia-dinh"><ArrowLeft size={17} />Chỉnh sửa giả định</Link>
           <div className="text-center text-sm font-bold text-brand-muted">Phương án đang chọn: {formatNumber(selected.powerKw, 0)} kW / {formatNumber(selected.energyKwh, 0)} kWh</div>
@@ -208,7 +246,6 @@ function UnifiedResultDashboard({
           <ConfidencePanel result={result} />
           <WarningsPanel warnings={result.warnings} />
           <TracePanel result={result} />
-          <ReportRequestPanel candidate={selected} />
         </aside>
       </div>
     </>
@@ -448,26 +485,128 @@ function TracePanel({ result }: { result: QuickSizingResult }) {
   );
 }
 
-function ReportRequestPanel({ candidate }: { candidate: SizingCandidateResult }) {
-  const [form, setForm] = useState(initialLeadForm);
-  const [submitted, setSubmitted] = useState(false);
-  const [resultCode, setResultCode] = useState("");
+function QuickSizingLeadGate({
+  analysisRunId,
+  assumptions,
+  basicInfo,
+  candidate,
+  onUnlocked,
+  result,
+  scenario,
+  selectedOptionId
+}: {
+  analysisRunId: string | null;
+  assumptions: QuickSizingAssumptions;
+  basicInfo: QuickSizingStep1FormValues | null;
+  candidate: SizingCandidateResult;
+  onUnlocked: (resultCode: string) => void;
+  result: QuickSizingResult;
+  scenario: string;
+  selectedOptionId: string;
+}) {
+  const user = useAuthStore((state) => state.user);
+  const [form, setForm] = useState<LeadForm>({
+    ...initialLeadForm,
+    name: user?.representative_name ?? "",
+    company: user?.company_name ?? "",
+    email: user?.email ?? "",
+    phone: user?.phone ?? ""
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
-  const submit = (event: FormEvent<HTMLFormElement>) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setResultCode(`QS-${new Date().getFullYear()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`);
-    setSubmitted(true);
+    setSubmitting(true);
+    setError("");
+    try {
+      const response = await leadsApi.captureQuickSizing({
+        full_name: form.name,
+        company_name: form.company || undefined,
+        email: form.email,
+        phone: form.phone,
+        industry: basicInfo?.industry || undefined,
+        interest: "Nhận báo cáo Quick Sizing đầy đủ",
+        privacy_consent: form.acceptedTerms,
+        marketing_consent: form.acceptedMarketing,
+        training_consent: form.acceptedTraining,
+        analysis_run_id: analysisRunId,
+        input_snapshot: {
+          basic_info: basicInfo,
+          assumptions,
+          scenario,
+          selected_option_id: selectedOptionId
+        },
+        result_snapshot: {
+          selected_candidate: compactQuickSizingCandidate(candidate),
+          representative_options: {
+            low_cost: compactQuickSizingCandidate(result.lowCostOption),
+            recommended: compactQuickSizingCandidate(result.recommendedOption),
+            high_benefit: compactQuickSizingCandidate(result.highBenefitOption)
+          },
+          analysis_years: result.analysisYears,
+          confidence: result.confidence,
+          scenario_ranges: result.scenarioRanges,
+          pareto_points: result.paretoPoints,
+          warnings: result.warnings,
+          config_versions: result.configVersions
+        },
+        metadata: {
+          page: "quick-sizing-result",
+          locale: "vi-VN"
+        }
+      });
+      onUnlocked(response.result_code ?? `QS-${response.lead_id.slice(-8).toUpperCase()}`);
+    } catch (submitError) {
+      setError(readLeadApiError(submitError));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  if (submitted) {
-    return <aside className="sticky top-24 h-fit"><Card className="rounded-xl bg-white p-5 text-center shadow-panel"><span className="mx-auto grid size-14 place-items-center rounded-full bg-green-50 text-brand-green"><CheckCircle2 size={30} /></span><h2 className="mt-4 text-xl font-bold text-brand-navy">Đã ghi nhận yêu cầu báo cáo</h2><p className="mt-3 text-sm font-medium text-brand-muted">Email nhận báo cáo: <strong className="text-brand-navy">{form.email}</strong></p><p className="mt-1 text-sm font-medium text-brand-muted">Mã kết quả: <strong className="text-brand-navy">{resultCode}</strong></p><p className="mt-4 rounded-lg bg-blue-50 p-3 text-xs font-medium leading-5 text-brand-muted">Frontend hiện chỉ ghi nhận yêu cầu và chưa gửi email thực tế.</p><button className={buttonVariants({ variant: "secondary", className: "mt-4 h-10 w-full" })} onClick={() => setSubmitted(false)} type="button">Chỉnh sửa thông tin</button></Card></aside>;
-  }
+  return (
+    <div className="mt-5 grid grid-cols-[minmax(0,1fr)_420px] items-start gap-5 max-xl:grid-cols-1">
+      <Card className="rounded-xl border-blue-100 bg-gradient-to-br from-blue-50/80 to-white p-5 shadow-panel">
+        <span className="inline-flex rounded-full bg-white px-3 py-1 text-xs font-bold text-brand-blue">Kết quả sơ bộ</span>
+        <h2 className="mt-4 text-2xl font-bold text-brand-navy">Phương án đề xuất khoảng {formatNumber(candidate.powerKw, 0)} kW / {formatNumber(candidate.energyKwh, 0)} kWh</h2>
+        <p className="mt-3 max-w-[760px] text-sm font-medium leading-6 text-brand-muted">Hệ thống đã hoàn tất candidate grid và xác định phương án đại diện. Nhập thông tin liên hệ để mở báo cáo đầy đủ gồm ba phương án, dòng tiền, NPV, IRR, Pareto, CAPEX và các cảnh báo giả định.</p>
+        <div className="mt-5 grid grid-cols-4 gap-3 max-lg:grid-cols-2 max-sm:grid-cols-1">
+          <Metric label="Công suất sơ bộ" value={`${formatNumber(candidate.powerKw, 0)} kW`} />
+          <Metric label="Dung lượng sơ bộ" value={`${formatNumber(candidate.energyKwh, 0)} kWh`} />
+          <Metric label="CAPEX ước tính" value={formatVnd(candidate.capex.totalCapexVnd)} />
+          <Metric label="Tiết kiệm năm đầu" value={formatVnd(candidate.netOperatingSavingYear1Vnd)} />
+        </div>
+        <div className="mt-5 rounded-xl border border-dashed border-blue-200 bg-white/80 p-5">
+          <div className="grid grid-cols-3 gap-4 opacity-45 blur-[2px] max-md:grid-cols-1">
+            <div className="h-28 rounded-lg bg-blue-100" />
+            <div className="h-28 rounded-lg bg-green-100" />
+            <div className="h-28 rounded-lg bg-violet-100" />
+          </div>
+          <p className="mt-4 text-center text-sm font-bold text-brand-blue">Báo cáo chi tiết đang được khóa</p>
+        </div>
+      </Card>
 
-  return <aside className="sticky top-24 h-fit"><Card className="rounded-xl bg-white p-5 shadow-panel"><h2 className="text-xl font-bold text-brand-navy">Nhận bản tóm tắt phương án</h2><p className="mt-2 text-sm font-medium leading-6 text-brand-muted">Phương án: {formatNumber(candidate.powerKw, 0)} kW / {formatNumber(candidate.energyKwh, 0)} kWh · CAPEX {formatVnd(candidate.capex.totalCapexVnd)}.</p><form className="mt-4 grid gap-3" onSubmit={submit}><LeadInput icon={UserRound} label="Họ và tên" value={form.name} onChange={(value) => setForm({ ...form, name: value })} /><LeadInput icon={Mail} label="Email công việc" type="email" value={form.email} onChange={(value) => setForm({ ...form, email: value })} /><LeadInput icon={Phone} label="Số điện thoại" type="tel" value={form.phone} onChange={(value) => setForm({ ...form, phone: value })} /><label className="flex items-start gap-3 text-sm font-medium leading-6 text-brand-navy"><input className="mt-1 size-4 accent-brand-blue" checked={form.acceptedTerms} onChange={(event) => setForm({ ...form, acceptedTerms: event.target.checked })} required type="checkbox" /><span>Tôi đồng ý với Điều khoản sử dụng và Chính sách bảo mật.</span></label><label className="flex items-start gap-3 text-sm font-medium leading-6 text-brand-muted"><input className="mt-1 size-4 accent-brand-blue" checked={form.acceptedMarketing} onChange={(event) => setForm({ ...form, acceptedMarketing: event.target.checked })} type="checkbox" /><span>Tôi đồng ý nhận thông tin tư vấn.</span></label><button className={buttonVariants({ variant: "green", className: "h-11 w-full" })} type="submit"><Send size={18} />Ghi nhận yêu cầu báo cáo</button></form></Card></aside>;
+      <Card className="sticky top-24 rounded-xl bg-white p-5 shadow-panel max-xl:static">
+        <h2 className="text-xl font-bold text-brand-navy">Mở báo cáo Quick Sizing đầy đủ</h2>
+        <p className="mt-2 text-sm font-medium leading-6 text-brand-muted">Thông tin được lưu vào pipeline lead của DataInsight cùng input và kết quả Quick Sizing để đội ngũ tư vấn tiếp tục hỗ trợ.</p>
+        <form className="mt-4 grid gap-3" onSubmit={submit}>
+          <LeadInput icon={UserRound} label="Họ và tên" value={form.name} onChange={(value) => setForm({ ...form, name: value })} />
+          <LeadInput icon={Wallet} label="Công ty" required={false} value={form.company} onChange={(value) => setForm({ ...form, company: value })} />
+          <LeadInput icon={Mail} label="Email công việc" type="email" value={form.email} onChange={(value) => setForm({ ...form, email: value })} />
+          <LeadInput icon={Phone} label="Số điện thoại" type="tel" value={form.phone} onChange={(value) => setForm({ ...form, phone: value })} />
+          <label className="flex items-start gap-3 text-sm font-medium leading-6 text-brand-navy"><input className="mt-1 size-4 accent-brand-blue" checked={form.acceptedTerms} onChange={(event) => setForm({ ...form, acceptedTerms: event.target.checked })} required type="checkbox" /><span>Tôi đồng ý với Điều khoản sử dụng và Chính sách bảo mật.</span></label>
+          <label className="flex items-start gap-3 text-sm font-medium leading-6 text-brand-muted"><input className="mt-1 size-4 accent-brand-blue" checked={form.acceptedMarketing} onChange={(event) => setForm({ ...form, acceptedMarketing: event.target.checked })} type="checkbox" /><span>Tôi đồng ý nhận thông tin tư vấn từ DataInsight.</span></label>
+          <label className="flex items-start gap-3 text-sm font-medium leading-6 text-brand-muted"><input className="mt-1 size-4 accent-brand-blue" checked={form.acceptedTraining} onChange={(event) => setForm({ ...form, acceptedTraining: event.target.checked })} type="checkbox" /><span>Tôi đồng ý cho phép sử dụng dữ liệu Quick Sizing đã ẩn danh để cải thiện mô hình.</span></label>
+          {error ? <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-bold text-red-700">{error}</div> : null}
+          <button className={buttonVariants({ variant: "green", className: "h-11 w-full" })} disabled={submitting} type="submit"><Send size={18} />{submitting ? "Đang lưu và mở báo cáo..." : "Nhận báo cáo đầy đủ"}</button>
+        </form>
+      </Card>
+    </div>
+  );
 }
 
-function LeadInput({ icon: Icon, label, value, onChange, type = "text" }: { icon: LucideIcon; label: string; value: string; onChange: (value: string) => void; type?: string }) {
-  return <label className="relative grid gap-1.5"><span className="text-sm font-semibold text-brand-navy">{label} <span className="text-red-600">*</span></span><Icon className="absolute left-4 top-[38px] text-brand-muted" size={17} /><input className="h-10 rounded-lg border border-brand-line pl-11 pr-4 text-sm font-medium outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/15" onChange={(event) => onChange(event.target.value)} placeholder={label} required type={type} value={value} /></label>;
+function LeadInput({ icon: Icon, label, required = true, value, onChange, type = "text" }: { icon: LucideIcon; label: string; required?: boolean; value: string; onChange: (value: string) => void; type?: string }) {
+  return <label className="relative grid gap-1.5"><span className="text-sm font-semibold text-brand-navy">{label} {required ? <span className="text-red-600">*</span> : null}</span><Icon className="absolute left-4 top-[38px] text-brand-muted" size={17} /><input className="h-10 rounded-lg border border-brand-line pl-11 pr-4 text-sm font-medium outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/15" onChange={(event) => onChange(event.target.value)} placeholder={label} required={required} type={type} value={value} /></label>;
 }
 
 function ComparisonTable({ analysisYears, options, selectedId }: { analysisYears: number; options: SizingOptionResult[]; selectedId: string }) {
@@ -486,6 +625,43 @@ function ComparisonTable({ analysisYears, options, selectedId }: { analysisYears
 function RangeRow({ emptyText = "N/A", label, range, formatter }: { emptyText?: string; label: string; range: MetricRange; formatter: (value: number) => string }) {
   const value = range.min === null || range.max === null ? emptyText : `${formatter(range.min)} - ${formatter(range.max)}`;
   return <div className="mt-3 flex items-center justify-between rounded-lg bg-slate-50 p-3"><span className="text-sm font-semibold text-brand-muted">{label}</span><strong className="text-right text-brand-navy">{value}</strong></div>;
+}
+
+function compactQuickSizingCandidate(candidate: SizingCandidateResult | null) {
+  if (!candidate) return null;
+  return {
+    id: candidate.id,
+    power_kw: candidate.powerKw,
+    energy_kwh: candidate.energyKwh,
+    capex_vnd: candidate.capex.totalCapexVnd,
+    annual_saving_vnd: candidate.netOperatingSavingYear1Vnd,
+    npv_vnd: candidate.npvVnd,
+    irr_pct: candidate.irrPct,
+    payback_years: candidate.paybackYears,
+    technical_coverage_pct: candidate.technicalCoveragePct,
+    effective_peak_reduction_kw: candidate.effectivePeakReductionKw,
+    budget_status: candidate.budgetEvaluation.status,
+    recommendation_score: candidate.recommendationScore
+  };
+}
+
+function quickSizingFingerprint(
+  analysisRunId: string | null,
+  basicInfo: QuickSizingStep1FormValues | null,
+  assumptions: QuickSizingAssumptions
+) {
+  const raw = analysisRunId || JSON.stringify({
+    industry: basicInfo?.industry,
+    bill: basicInfo?.monthlyElectricityBillVnd,
+    voltage: basicInfo?.voltageLevel,
+    objectives: basicInfo?.bessObjectives,
+    assumptions
+  });
+  let hash = 5381;
+  for (let index = 0; index < raw.length; index += 1) {
+    hash = ((hash << 5) + hash) ^ raw.charCodeAt(index);
+  }
+  return Math.abs(hash >>> 0).toString(36);
 }
 
 function representativeOptions(result: QuickSizingResult) {

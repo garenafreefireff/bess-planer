@@ -10,8 +10,18 @@ python -m pip install -e .
 uvicorn app.main:app --reload
 ```
 
-Uploaded CSV/XLSX files are stored under `storage/uploads` by default. Configure
-`STORAGE_DIRECTORY` and `MAX_UPLOAD_SIZE_MB` in the backend environment when needed.
+The production Sizing Lab flow uses transient multipart uploads. Load/PV content is
+read into request memory and passed directly to Oracle LP-PF; the application does not
+write it into persistent storage. MongoDB stores the project configuration and analysis
+result, not the uploaded file content or original file name.
+
+```text
+POST /api/v1/analyses/sizing-lab/transient
+multipart: project_id, load_file, optional pv_file
+```
+
+Legacy `/files` and `/datasets` endpoints remain available for older records, but the
+current BESS Planner wizard does not call them.
 
 The API health endpoint is available at:
 
@@ -93,11 +103,33 @@ DELETE /api/v1/datasets/{dataset_id}
 
 ```text
 POST /api/v1/analyses/quick-sizing
+POST /api/v1/analyses/sizing-lab/transient
 POST /api/v1/analyses/bess-planner
 GET  /api/v1/analyses
 GET  /api/v1/analyses/{analysis_run_id}
 ```
 
-`POST /analyses/bess-planner` currently performs the data-readiness precheck and
-stores an analysis run. Dispatch optimization and financial optimization remain the
-next implementation stage.
+The transient Sizing Lab endpoint runs Oracle LP-PF, Pareto and SLSM, then stores the
+analysis result without persisting the source Load/PV files.
+
+## Lead pipeline
+
+Public lead capture:
+
+```text
+POST /api/v1/leads
+POST /api/v1/leads/quick-sizing
+```
+
+Admin-only pipeline management:
+
+```text
+GET   /api/v1/admin/leads
+PATCH /api/v1/admin/leads/{lead_id}
+```
+
+Leads are upserted by normalized email. Contact submissions, Quick Sizing report
+requests and account registrations become interactions on the same lead. Quick Sizing
+stores a compact input/result snapshot. `training_consent` is tracked separately from
+privacy and marketing consent; records without training consent must not be included in
+model-training datasets.

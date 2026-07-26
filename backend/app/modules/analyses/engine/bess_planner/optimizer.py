@@ -1,8 +1,13 @@
 from typing import Any
 
+from app.modules.analyses.engine.sizing_lab import SizingLabPlanner
+
 
 class BessPlannerOptimizer:
-    engine_version = "bess-precheck-0.1.0"
+    engine_version = SizingLabPlanner.engine_version
+
+    def __init__(self) -> None:
+        self.sizing_lab = SizingLabPlanner()
 
     def precheck(
         self,
@@ -68,8 +73,16 @@ class BessPlannerOptimizer:
             ),
         }
 
-    def optimize(self, inputs: object) -> object:
-        raise NotImplementedError("BESS planner dispatch optimization is not implemented yet.")
+    def optimize(
+        self,
+        *,
+        configuration: dict[str, Any],
+        datasets: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        return self.sizing_lab.run(
+            configuration=configuration,
+            datasets=datasets,
+        )
 
 
 def _positive_number(value: object) -> float | None:

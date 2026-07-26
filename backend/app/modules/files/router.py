@@ -1,7 +1,9 @@
 from typing import Annotated
 
+from urllib.parse import quote
+
 from fastapi import APIRouter, File, Form, UploadFile, status
-from fastapi.responses import FileResponse as DownloadResponse
+from fastapi.responses import StreamingResponse
 
 from app.dependencies.authentication import CurrentUserDep
 from app.dependencies.common import PaginationDep
@@ -59,12 +61,16 @@ async def download_file(
     file_id: ObjectIdStr,
     current_user: CurrentUserDep,
     file_service: FileServiceDep,
-) -> DownloadResponse:
-    path, file_document = await file_service.get_download(file_id, current_user.id)
-    return DownloadResponse(
-        path=path,
+) -> StreamingResponse:
+    content, file_document = await file_service.get_download(file_id, current_user.id)
+    encoded_name = quote(file_document.original_name)
+    return StreamingResponse(
+        content,
         media_type=file_document.content_type,
-        filename=file_document.original_name,
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_name}",
+            "Content-Length": str(file_document.size_bytes),
+        },
     )
 
 

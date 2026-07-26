@@ -40,8 +40,8 @@ export const benefits: Array<{ icon: LucideIcon; title: string; text: string }> 
   },
   {
     icon: ShieldCheck,
-    title: "Dễ triển khai & kiểm soát",
-    text: "Giao diện trực quan, dữ liệu đầu vào rõ ràng và kết quả có thể truy vết."
+    title: "Dễ dàng & an toàn",
+    text: "Giao diện trực quan, bảo mật cao cấp theo chuẩn doanh nghiệp."
   }
 ];
 
@@ -53,17 +53,17 @@ export const trustBadges: Array<{ title: string; detail: string; icon: LucideIco
 ];
 
 export const heroMetrics: Array<{ icon: LucideIcon; title: string; value: string; tone: "green" | "blue" }> = [
-  { icon: CircleDollarSign, title: "Tiềm năng tiết kiệm", value: "Theo từng kịch bản", tone: "green" },
-  { icon: TrendingUp, title: "Giảm công suất đỉnh", value: "Tối ưu phụ tải", tone: "blue" },
-  { icon: ShieldCheck, title: "Đánh giá đầu tư", value: "IRR • NPV • Payback", tone: "green" }
+  { icon: CircleDollarSign, title: "Giảm chi phí điện", value: "10 – 30%", tone: "green" },
+  { icon: TrendingUp, title: "Tối ưu công suất", value: "Giảm đỉnh hiệu quả", tone: "blue" },
+  { icon: ShieldCheck, title: "Đầu tư hiệu quả", value: "IRR tối ưu", tone: "green" }
 ];
 
-export const quickToolItems = ["Kết quả trong 2 - 5 phút", "Phù hợp giai đoạn đánh giá sơ bộ", "Ít dữ liệu đầu vào, dễ sử dụng"];
+export const quickToolItems = ["Kết quả trong 2 - 5 phút", "Phù hợp giai đoạn đánh giá sơ bộ", "Miễn phí, dễ sử dụng"];
 
 export const plannerToolItems = [
   "Mô phỏng theo dữ liệu thực tế",
   "Tối ưu cấu hình & vận hành chuyên sâu",
-  "Báo cáo phục vụ thẩm định và ra quyết định"
+  "Báo cáo đầu tư cho vay & đấu thầu dự án"
 ];
 
 export const workflowSteps: Array<{ number: string; icon: LucideIcon; title: string; text: string }> = [

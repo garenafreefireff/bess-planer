@@ -1,1 +1,16 @@
-"""Lead enums."""
+from enum import StrEnum
+
+
+class LeadSource(StrEnum):
+    CONTACT_FORM = "contact_form"
+    QUICK_SIZING = "quick_sizing"
+    REGISTRATION = "registration"
+
+
+class LeadStatus(StrEnum):
+    NEW = "new"
+    CONTACTED = "contacted"
+    QUALIFIED = "qualified"
+    PROPOSAL = "proposal"
+    CONVERTED = "converted"
+    LOST = "lost"

@@ -6,6 +6,7 @@ from app.modules.auth.router import router as auth_router
 from app.modules.bess_catalog.router import router as bess_catalog_router
 from app.modules.datasets.router import router as datasets_router
 from app.modules.files.router import router as files_router
+from app.modules.leads.router import admin_router as admin_leads_router
 from app.modules.leads.router import router as leads_router
 from app.modules.projects.router import router as projects_router
 from app.modules.reports.router import router as reports_router
@@ -32,6 +33,7 @@ api_router.include_router(files_router, prefix="/files", tags=["files"])
 api_router.include_router(datasets_router, prefix="/datasets", tags=["datasets"])
 api_router.include_router(reports_router, prefix="/reports", tags=["reports"])
 api_router.include_router(leads_router, prefix="/leads", tags=["leads"])
+api_router.include_router(admin_leads_router, prefix="/admin/leads", tags=["admin-leads"])
 api_router.include_router(audit_logs_router, prefix="/audit-logs", tags=["audit-logs"])
 api_router.include_router(
     system_settings_router,

@@ -1,3 +1,5 @@
+import asyncio
+from collections.abc import Iterator
 from hashlib import sha256
 from pathlib import Path
 
@@ -5,7 +7,7 @@ from fastapi import UploadFile
 
 from app.core.config import Settings
 from app.core.exceptions import AppError, ConflictError, NotFoundError
-from app.dependencies.storage import LocalStorageClient
+from app.dependencies.storage import StorageClient
 from app.models.file import FileDocument
 from app.modules.datasets.repository import DatasetRepository
 from app.modules.files.enums import FileKind
@@ -23,7 +25,7 @@ class FileService:
         file_repository: FileRepository,
         dataset_repository: DatasetRepository,
         project_repository: ProjectRepository,
-        storage_client: LocalStorageClient,
+        storage_client: StorageClient,
         settings: Settings,
     ) -> None:
         self.file_repository = file_repository
@@ -60,7 +62,8 @@ class FileService:
                 code="file_too_large",
             )
 
-        relative_path, _ = self.storage_client.save(
+        relative_path, _ = await asyncio.to_thread(
+            self.storage_client.save,
             content,
             user_id=user_id,
             project_id=project_id,
@@ -82,7 +85,7 @@ class FileService:
         try:
             created = await self.file_repository.create_file(file_document)
         except Exception:
-            self.storage_client.delete(relative_path)
+            await asyncio.to_thread(self.storage_client.delete, relative_path)
             raise
         return self._to_response(created)
 
@@ -105,12 +108,19 @@ class FileService:
         file_document = await self._get_document(file_id, user_id)
         return self._to_response(file_document)
 
-    async def get_download(self, file_id: str, user_id: str) -> tuple[Path, FileDocument]:
+    async def get_download(
+        self,
+        file_id: str,
+        user_id: str,
+    ) -> tuple[Iterator[bytes], FileDocument]:
         file_document = await self._get_document(file_id, user_id)
-        path = self.storage_client.resolve(file_document.storage_path)
-        if not path.exists():
+        exists = await asyncio.to_thread(
+            self.storage_client.exists,
+            file_document.storage_path,
+        )
+        if not exists:
             raise NotFoundError("Stored file is missing.")
-        return path, file_document
+        return self.storage_client.iter_bytes(file_document.storage_path), file_document
 
     async def delete_file(self, file_id: str, user_id: str) -> None:
         if await self.dataset_repository.count_by_file_for_user(file_id, user_id):
@@ -118,7 +128,7 @@ class FileService:
         deleted = await self.file_repository.delete_by_id_for_user(file_id, user_id)
         if deleted is None:
             raise NotFoundError("File not found.")
-        self.storage_client.delete(deleted.storage_path)
+        await asyncio.to_thread(self.storage_client.delete, deleted.storage_path)
 
     async def _get_document(self, file_id: str, user_id: str) -> FileDocument:
         file_document = await self.file_repository.get_by_id_for_user(file_id, user_id)

@@ -164,6 +164,16 @@ export type DatasetResponse = {
 export type AnalysisType = "quick_sizing" | "bess_planning" | "technical" | "financial";
 export type AnalysisRunStatus = "queued" | "running" | "completed" | "failed";
 
+export type ApplySizingSelectionResponse = {
+  project_id: string;
+  analysis_run_id: string;
+  candidate_id: string;
+  energy_kwh: number;
+  power_kw: number;
+  contract_pmax_kw: number;
+  scenario_created: boolean;
+};
+
 export type AnalysisRunResponse = {
   id: string | null;
   user_id: string | null;
@@ -367,8 +377,42 @@ export const datasetsApi = {
 };
 
 export const analysesApi = {
+  async createTransientSizingLab(
+    projectId: string,
+    loadFile: File,
+    pvFile?: File | null
+  ): Promise<AnalysisRunResponse> {
+    const formData = new FormData();
+    formData.append("project_id", projectId);
+    formData.append("load_file", loadFile);
+    if (pvFile) formData.append("pv_file", pvFile);
+    const response = await apiClient.post<AnalysisRunResponse>(
+      "/analyses/sizing-lab/transient",
+      formData,
+      { timeout: 0 }
+    );
+    return response.data;
+  },
+
+  async createSizingLab(projectId: string): Promise<AnalysisRunResponse> {
+    const response = await apiClient.post<AnalysisRunResponse>(
+      "/analyses/sizing-lab",
+      { project_id: projectId },
+      { timeout: 0 }
+    );
+    return response.data;
+  },
+
   async createBessPlanner(projectId: string): Promise<AnalysisRunResponse> {
     const response = await apiClient.post<AnalysisRunResponse>("/analyses/bess-planner", { project_id: projectId });
+    return response.data;
+  },
+
+  async applySizingSelection(analysisRunId: string, candidateId: string): Promise<ApplySizingSelectionResponse> {
+    const response = await apiClient.post<ApplySizingSelectionResponse>(`/analyses/${analysisRunId}/apply-selection`, {
+      candidate_id: candidateId,
+      create_scenario: true
+    });
     return response.data;
   },
 

@@ -1,3 +1,4 @@
+import logging
 from datetime import timedelta
 
 from app.core.config import Settings
@@ -22,7 +23,10 @@ from app.modules.auth.schemas import (
     LoginRequest,
     RegisterRequest,
 )
+from app.modules.leads.service import LeadService
 from app.modules.users.enums import UserStatus
+
+logger = logging.getLogger(__name__)
 
 
 class ClientMetadata:
@@ -32,9 +36,15 @@ class ClientMetadata:
 
 
 class AuthService:
-    def __init__(self, auth_repository: AuthRepository, settings: Settings) -> None:
+    def __init__(
+        self,
+        auth_repository: AuthRepository,
+        settings: Settings,
+        lead_service: LeadService,
+    ) -> None:
         self.auth_repository = auth_repository
         self.settings = settings
+        self.lead_service = lead_service
 
     async def register(
         self,
@@ -53,6 +63,17 @@ class AuthService:
             industry=payload.industry,
         )
         created_user = await self.auth_repository.create_user(user)
+        try:
+            await self.lead_service.capture_registration(
+                user_id=created_user.id or "",
+                email=created_user.email,
+                full_name=created_user.representative_name,
+                phone=created_user.phone,
+                company_name=created_user.company_name,
+                industry=created_user.industry,
+            )
+        except Exception:
+            logger.exception("Could not synchronize registration into lead pipeline.")
         return await self._issue_token_pair(created_user, metadata)
 
     async def login(

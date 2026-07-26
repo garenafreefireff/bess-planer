@@ -30,7 +30,7 @@ type ProjectRow = {
   id: string;
   name: string;
   company: string;
-  tool: "BESS Planner" | "Quick Sizing";
+  tool: "Sizing Lab" | "Quick Sizing";
   status: ProjectStatus | "local_draft";
   updated: string;
   source: "backend" | "local";
@@ -71,7 +71,7 @@ export function MyProjectsApiPage() {
           id: "local-draft",
           name: draft.project.name,
           company: draft.project.industry || "Chưa xác định",
-          tool: "BESS Planner",
+          tool: "Sizing Lab",
           status: "local_draft",
           updated: "Đã lưu trên trình duyệt",
           source: "local"
@@ -87,7 +87,7 @@ export function MyProjectsApiPage() {
       id: project.id,
       name: project.name,
       company: readProjectCompany(project),
-      tool: project.project_type === "quick_sizing" ? "Quick Sizing" : "BESS Planner",
+      tool: project.project_type === "quick_sizing" ? "Quick Sizing" : "Sizing Lab",
       status: project.status,
       updated: formatDateTime(project.updated_at),
       source: "backend" as const
@@ -164,7 +164,7 @@ export function MyProjectsApiPage() {
           </button>
           <Link className={buttonVariants({ className: "h-11" })} href="/customer-portal/du-an-cua-toi/tao-du-an">
             <Plus size={18} />
-            Tạo dự án BESS Planner
+            Tạo dự án Sizing Lab
           </Link>
         </div>
       </div>

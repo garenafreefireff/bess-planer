@@ -63,6 +63,7 @@ type Metric = {
 const adminNav = [
   { label: "Tổng quan", href: "/admin", icon: Home },
   { label: "Quản lý người dùng", href: "/admin/users", icon: Users },
+  { label: "Lead khách hàng", href: "/admin/leads", icon: UserPlus },
   { label: "Vai trò & quyền", href: "/admin/roles", icon: ShieldCheck },
   { label: "Dự án của người dùng", href: "/admin/projects", icon: Folder },
   { label: "File upload", href: "/admin/files", icon: CloudUpload },
@@ -464,7 +465,7 @@ export function AdminReportsPage() {
   );
 }
 
-function AdminShell({ activeItem, action, children, subtitle, title }: { activeItem: string; action?: ReactNode; children: ReactNode; subtitle: string; title: string }) {
+export function AdminShell({ activeItem, action, children, subtitle, title }: { activeItem: string; action?: ReactNode; children: ReactNode; subtitle: string; title: string }) {
   return (
     <main className="min-h-screen bg-white text-brand-navy">
       <div className="grid min-h-screen grid-cols-[300px_1fr] max-xl:grid-cols-[260px_1fr] max-lg:grid-cols-1">

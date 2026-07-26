@@ -22,6 +22,7 @@ import { PublicFooter } from "@/components/layout/public-footer";
 import { PublicHeader } from "@/components/layout/public-header";
 import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { leadsApi, readLeadApiError } from "@/lib/api/leads.api";
 import { cn } from "@/lib/utils";
 
 const supportCards = [
@@ -103,12 +104,34 @@ export function ContactPage() {
 }
 
 function ContactForm() {
-  const [form, setForm] = useState({ name: "", company: "", email: "", phone: "", interest: "", message: "" });
+  const [form, setForm] = useState({ name: "", company: "", email: "", phone: "", interest: "", message: "", acceptedPrivacy: false, acceptedMarketing: false });
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
-  const submit = (event: FormEvent<HTMLFormElement>) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setSubmitted(true);
+    setSubmitting(true);
+    setError("");
+    try {
+      await leadsApi.create({
+        full_name: form.name,
+        company_name: form.company,
+        email: form.email,
+        phone: form.phone,
+        interest: form.interest,
+        message: form.message,
+        privacy_consent: form.acceptedPrivacy,
+        marketing_consent: form.acceptedMarketing,
+        training_consent: false,
+        metadata: { page: "contact", locale: "vi-VN" }
+      });
+      setSubmitted(true);
+    } catch (submitError) {
+      setError(readLeadApiError(submitError));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (submitted) {
@@ -117,8 +140,8 @@ function ContactForm() {
         <div className="max-w-md">
           <span className="mx-auto grid size-14 place-items-center rounded-full bg-green-50 text-brand-green"><CheckCircle2 size={30} /></span>
           <h2 className="mt-4 text-2xl font-bold text-brand-navy">Đã ghi nhận yêu cầu liên hệ</h2>
-          <p className="mt-3 text-sm font-medium leading-6 text-brand-muted">Thông tin của {form.name} tại {form.company} đã được lưu trên giao diện demo với email <strong className="text-brand-navy">{form.email}</strong>.</p>
-          <p className="mt-4 rounded-lg bg-blue-50 p-3 text-xs font-medium leading-5 text-brand-muted">Frontend hiện chưa gửi dữ liệu ra ngoài. Khi tích hợp dịch vụ liên hệ, trạng thái này sẽ được thay bằng kết quả gửi thực tế.</p>
+          <p className="mt-3 text-sm font-medium leading-6 text-brand-muted">Thông tin của {form.name} tại {form.company} đã được lưu vào hệ thống lead với email <strong className="text-brand-navy">{form.email}</strong>.</p>
+          <p className="mt-4 rounded-lg bg-blue-50 p-3 text-xs font-medium leading-5 text-brand-muted">Đội ngũ DataInsight có thể theo dõi và cập nhật trạng thái yêu cầu này trong Admin Portal.</p>
           <button className={buttonVariants({ variant: "secondary", className: "mt-5 h-10" })} onClick={() => setSubmitted(false)} type="button">Chỉnh sửa nội dung</button>
         </div>
       </Card>
@@ -151,13 +174,22 @@ function ContactForm() {
           <span>Nội dung liên hệ <span className="text-red-500">*</span></span>
           <textarea className="min-h-[92px] resize-none rounded-md border border-brand-line bg-white px-4 py-3 text-sm font-semibold outline-none placeholder:text-brand-muted focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/15" onChange={(event) => setForm({ ...form, message: event.target.value })} placeholder="Vui lòng mô tả chi tiết nhu cầu hoặc câu hỏi của bạn" required value={form.message} />
         </label>
-        <button className={buttonVariants({ variant: "green", className: "h-10" })} type="submit">
+        <label className="flex items-start gap-3 text-sm font-medium leading-6 text-brand-navy">
+          <input className="mt-1 size-4 accent-brand-blue" checked={form.acceptedPrivacy} onChange={(event) => setForm({ ...form, acceptedPrivacy: event.target.checked })} required type="checkbox" />
+          <span>Tôi đồng ý để DataInsight lưu và xử lý thông tin này nhằm phản hồi yêu cầu tư vấn.</span>
+        </label>
+        <label className="flex items-start gap-3 text-sm font-medium leading-6 text-brand-muted">
+          <input className="mt-1 size-4 accent-brand-blue" checked={form.acceptedMarketing} onChange={(event) => setForm({ ...form, acceptedMarketing: event.target.checked })} type="checkbox" />
+          <span>Tôi đồng ý nhận thêm thông tin sản phẩm và chương trình tư vấn.</span>
+        </label>
+        {error ? <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div> : null}
+        <button className={buttonVariants({ variant: "green", className: "h-10" })} disabled={submitting} type="submit">
           <Mail size={17} />
-          Gửi yêu cầu
+          {submitting ? "Đang gửi..." : "Gửi yêu cầu"}
         </button>
         <p className="flex items-center justify-center gap-2 text-xs font-semibold text-brand-muted">
           <ShieldCheck className="text-brand-green" size={15} />
-          Dữ liệu đang được xử lý trong chế độ frontend demo và chưa gửi ra ngoài.
+          Thông tin được lưu trong CRM nội bộ của DataInsight để phục vụ tư vấn.
         </p>
       </form>
     </Card>

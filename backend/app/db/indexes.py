@@ -29,3 +29,6 @@ async def ensure_indexes(database: AsyncIOMotorDatabase) -> None:
     await database["datasets"].create_index([("user_id", 1), ("updated_at", -1)])
     await database["datasets"].create_index("project_id")
     await database["datasets"].create_index("file_id", unique=True)
+    await database["leads"].create_index("email", unique=True)
+    await database["leads"].create_index([("status", 1), ("updated_at", -1)])
+    await database["leads"].create_index([("sources", 1), ("updated_at", -1)])

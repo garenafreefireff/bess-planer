@@ -1,5 +1,7 @@
+import asyncio
+
 from app.core.exceptions import NotFoundError
-from app.dependencies.storage import LocalStorageClient
+from app.dependencies.storage import StorageClient
 from app.models.project import ProjectDocument
 from app.modules.datasets.repository import DatasetRepository
 from app.modules.files.repository import FileRepository
@@ -18,7 +20,7 @@ class ProjectService:
         project_repository: ProjectRepository,
         dataset_repository: DatasetRepository,
         file_repository: FileRepository,
-        storage_client: LocalStorageClient,
+        storage_client: StorageClient,
     ) -> None:
         self.project_repository = project_repository
         self.dataset_repository = dataset_repository
@@ -99,8 +101,15 @@ class ProjectService:
         files = await self.file_repository.list_by_project_for_user(project_id, user_id)
         await self.dataset_repository.delete_by_project_for_user(project_id, user_id)
         await self.file_repository.delete_by_project_for_user(project_id, user_id)
-        for file_document in files:
-            self.storage_client.delete(file_document.storage_path)
+        await asyncio.gather(
+            *(
+                asyncio.to_thread(
+                    self.storage_client.delete,
+                    file_document.storage_path,
+                )
+                for file_document in files
+            )
+        )
 
         deleted = await self.project_repository.delete_by_id_for_user(
             project_id,

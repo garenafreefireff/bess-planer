@@ -9,17 +9,13 @@ import { cn } from "@/lib/utils";
 import {
   analysesApi,
   bessCatalogApi,
-  datasetsApi,
-  filesApi,
   readWorkspaceApiError,
   sitesApi,
   tariffsApi,
   type AnalysisRunResponse,
   type BessCatalogResponse,
-  type DatasetResponse,
   type SiteResponse,
-  type TariffResponse,
-  type WorkspaceFileResponse
+  type TariffResponse
 } from "../api/workspace.api";
 
 const initialTariff = {
@@ -47,8 +43,6 @@ export function BackendResourcesContent() {
   const [tariffs, setTariffs] = useState<TariffResponse[]>([]);
   const [sites, setSites] = useState<SiteResponse[]>([]);
   const [catalogs, setCatalogs] = useState<BessCatalogResponse[]>([]);
-  const [files, setFiles] = useState<WorkspaceFileResponse[]>([]);
-  const [datasets, setDatasets] = useState<DatasetResponse[]>([]);
   const [analyses, setAnalyses] = useState<AnalysisRunResponse[]>([]);
   const [tariffForm, setTariffForm] = useState(initialTariff);
   const [siteForm, setSiteForm] = useState(initialSite);
@@ -61,19 +55,15 @@ export function BackendResourcesContent() {
     setLoading(true);
     setError("");
     try {
-      const [tariffPage, sitePage, catalogPage, filePage, datasetPage, analysisPage] = await Promise.all([
+      const [tariffPage, sitePage, catalogPage, analysisPage] = await Promise.all([
         tariffsApi.list({ page: 1, page_size: 100 }),
         sitesApi.list({ page: 1, page_size: 100 }),
         bessCatalogApi.list({ page: 1, page_size: 100 }),
-        filesApi.list({ page: 1, page_size: 100 }),
-        datasetsApi.list({ page: 1, page_size: 100 }),
         analysesApi.list({ page: 1, page_size: 50 })
       ]);
       setTariffs(tariffPage.items);
       setSites(sitePage.items);
       setCatalogs(catalogPage.items);
-      setFiles(filePage.items);
-      setDatasets(datasetPage.items);
       setAnalyses(analysisPage.items);
       setSiteForm((current) => ({ ...current, tariffId: current.tariffId || tariffPage.items.find((item) => item.status === "active")?.id || "" }));
     } catch (loadError) {
@@ -206,8 +196,6 @@ export function BackendResourcesContent() {
   const removeTariff = (item: TariffResponse) => removeResource(`tariff-${item.id}`, item.name, () => tariffsApi.remove(item.id), () => setTariffs((rows) => rows.filter((row) => row.id !== item.id)));
   const removeSite = (item: SiteResponse) => removeResource(`site-${item.id}`, item.name, () => sitesApi.remove(item.id), () => setSites((rows) => rows.filter((row) => row.id !== item.id)));
   const removeCatalog = (item: BessCatalogResponse) => removeResource(`catalog-${item.id}`, item.name, () => bessCatalogApi.remove(item.id), () => setCatalogs((rows) => rows.filter((row) => row.id !== item.id)));
-  const removeFile = (item: WorkspaceFileResponse) => removeResource(`file-${item.id}`, item.original_name, () => filesApi.remove(item.id), () => setFiles((rows) => rows.filter((row) => row.id !== item.id)));
-  const removeDataset = (item: DatasetResponse) => removeResource(`dataset-${item.id}`, `${item.dataset_type} dataset`, () => datasetsApi.remove(item.id), () => setDatasets((rows) => rows.filter((row) => row.id !== item.id)));
 
   const removeResource = async (key: string, name: string, action: () => Promise<unknown>, onDone: () => void) => {
     if (!window.confirm(`Xóa “${name}” khỏi backend?`)) return;
@@ -227,8 +215,8 @@ export function BackendResourcesContent() {
     <main className="w-full pb-10 pt-7">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-[34px] font-bold text-brand-navy">Dữ liệu backend</h1>
-            <p className="mt-2 text-sm font-medium text-brand-muted">Quản lý Site, biểu giá, BESS catalog và theo dõi analysis run qua các API hiện có.</p>
+            <h1 className="text-[34px] font-bold text-brand-navy">Cấu hình hệ thống</h1>
+            <p className="mt-2 text-sm font-medium text-brand-muted">Quản lý Site, biểu giá và BESS catalog. File đầu vào không được lưu sau khi chạy phân tích.</p>
           </div>
           <button className={buttonVariants({ variant: "secondary", className: "h-11" })} disabled={loading} onClick={() => void loadResources()} type="button"><RefreshCw className={cn(loading && "animate-spin")} size={18} />Làm mới</button>
         </div>
@@ -275,28 +263,6 @@ export function BackendResourcesContent() {
               <ResourceTable rows={catalogs.map((item) => ({ id: item.id, name: item.name, detail: `${item.code} · version ${item.version}`, status: item.status, busy: busyKey === `catalog-${item.id}`, onToggle: () => void toggleCatalog(item), onDelete: () => void removeCatalog(item) }))} />
             </ResourceSection>
 
-            <ResourceSection icon={Database} title="Files đã upload" count={files.length}>
-              <DataRecordTable rows={files.map((item) => ({
-                id: item.id,
-                name: item.original_name,
-                detail: `${item.kind} · ${formatBytes(item.size_bytes)} · ${item.status}`,
-                status: item.status,
-                busy: busyKey === `file-${item.id}`,
-                onDelete: () => void removeFile(item)
-              }))} />
-            </ResourceSection>
-
-            <ResourceSection icon={FileBarChart} title="Datasets đã chuẩn hóa" count={datasets.length}>
-              <DataRecordTable rows={datasets.map((item) => ({
-                id: item.id,
-                name: item.dataset_type,
-                detail: `${item.valid_row_count.toLocaleString("vi-VN")}/${item.row_count.toLocaleString("vi-VN")} dòng hợp lệ · interval ${item.interval_minutes ?? "—"} phút`,
-                status: item.status,
-                busy: busyKey === `dataset-${item.id}`,
-                onDelete: () => void removeDataset(item)
-              }))} />
-            </ResourceSection>
-
             <ResourceSection icon={FileBarChart} title="Analysis runs" count={analyses.length}>
               <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-sm"><thead className="bg-slate-50 text-left text-brand-muted"><tr><th className="px-4 py-3">Loại</th><th className="px-4 py-3">Trạng thái</th><th className="px-4 py-3">Tiến độ</th><th className="px-4 py-3">Engine</th><th className="px-4 py-3">Thời gian</th></tr></thead><tbody>{analyses.map((item) => <tr className="border-t border-brand-line" key={item.id ?? `${item.created_at}-${item.analysis_type}`}><td className="px-4 py-3 font-bold text-brand-navy">{item.analysis_type}</td><td className="px-4 py-3">{item.status}</td><td className="px-4 py-3">{item.progress_pct}%</td><td className="px-4 py-3">{item.engine_version}</td><td className="px-4 py-3">{new Date(item.created_at).toLocaleString("vi-VN")}</td></tr>)}</tbody></table></div>
             </ResourceSection>
@@ -313,15 +279,6 @@ function ResourceSection({ title, count, icon: Icon, form, children }: { title: 
 function ResourceTable({ rows }: { rows: Array<{ id: string; name: string; detail: string; status: string; busy: boolean; onToggle: () => void; onDelete: () => void }> }) {
   if (!rows.length) return <div className="p-5 text-sm font-medium text-brand-muted">Chưa có dữ liệu.</div>;
   return <div className="divide-y divide-brand-line">{rows.map((row) => <div className="grid grid-cols-[1fr_auto_auto] items-center gap-3 p-4" key={row.id}><div><strong className="block text-sm text-brand-navy">{row.name}</strong><span className="mt-1 block text-xs font-medium text-brand-muted">{row.detail}</span></div><span className={cn("rounded-full px-3 py-1 text-xs font-bold", row.status === "active" ? "bg-green-50 text-brand-green" : "bg-slate-100 text-brand-muted")}>{row.status}</span><div className="flex gap-2"><button aria-label="Lưu trữ hoặc khôi phục" className="grid size-9 place-items-center rounded-lg border border-brand-line text-brand-muted hover:text-brand-blue" disabled={row.busy} onClick={row.onToggle} type="button"><Archive size={16} /></button><button aria-label="Xóa" className="grid size-9 place-items-center rounded-lg border border-brand-line text-brand-muted hover:text-red-600" disabled={row.busy} onClick={row.onDelete} type="button">{row.busy ? <LoaderCircle className="animate-spin" size={16} /> : <Trash2 size={16} />}</button></div></div>)}</div>;
-}
-
-function DataRecordTable({ rows }: { rows: Array<{ id: string; name: string; detail: string; status: string; busy: boolean; onDelete: () => void }> }) {
-  if (!rows.length) return <div className="p-5 text-sm font-medium text-brand-muted">Chưa có dữ liệu.</div>;
-  return <div className="divide-y divide-brand-line">{rows.map((row) => <div className="grid grid-cols-[1fr_auto_auto] items-center gap-3 p-4" key={row.id}><div><strong className="block text-sm text-brand-navy">{row.name}</strong><span className="mt-1 block text-xs font-medium text-brand-muted">{row.detail}</span></div><span className={cn("rounded-full px-3 py-1 text-xs font-bold", row.status === "ready" || row.status === "validated" ? "bg-green-50 text-brand-green" : row.status === "warning" || row.status === "uploaded" ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-600")}>{row.status}</span><button aria-label="Xóa" className="grid size-9 place-items-center rounded-lg border border-brand-line text-brand-muted hover:text-red-600" disabled={row.busy} onClick={row.onDelete} type="button">{row.busy ? <LoaderCircle className="animate-spin" size={16} /> : <Trash2 size={16} />}</button></div>)}</div>;
-}
-
-function formatBytes(value: number) {
-  return value >= 1024 * 1024 ? `${(value / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(value / 1024))} KB`;
 }
 
 function TextInput({ label, value, onChange, type = "text" }: { label: string; value: string; onChange: (value: string) => void; type?: string }) {

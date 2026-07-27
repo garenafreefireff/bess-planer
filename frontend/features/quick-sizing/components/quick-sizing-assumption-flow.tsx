@@ -18,11 +18,12 @@ import {
   formatVnd,
   resolveDemandChargeFromStep1Voltage,
   type QuickSizingAssumptions,
+  type QuickSizingMetrics,
   type QuickSizingScenario
 } from "../data/quick-sizing-model";
 import type { QuickSizingStep1FormValues } from "../data/quick-sizing-step1-schema";
 import { useQuickSizingStore } from "../data/quick-sizing-store";
-import type { CapexBreakdown } from "../result-calculation";
+import type { CapexBreakdown, QuickSizingResult, SizingCandidateResult } from "../result-calculation";
 
 const scenarioCards: Array<{
   id: Exclude<QuickSizingScenario, "custom">;
@@ -89,6 +90,23 @@ const financeFields: NumberField[] = [
   { key: "taxPct", label: "Thuế TNDN", unit: "%", min: 0, max: 40 }
 ];
 
+const costMainFields = costFields.filter((field) => field.key !== "omGrowthPct");
+const costAdvancedFields = costFields.filter((field) => field.key === "omGrowthPct");
+const tariffMainFields = tariffFields.filter((field) => field.key !== "priceEscalationPct");
+const tariffAdvancedFields = tariffFields.filter((field) => field.key === "priceEscalationPct");
+const financeMainFields = financeFields.filter((field) => field.key !== "taxPct");
+const financeAdvancedFields = financeFields.filter((field) => field.key === "taxPct");
+const peakAdvancedFieldKeys = peakAdvancedFields.map((field) => field.key);
+const advancedAssumptionKeys = [
+  ...operatingAdvancedFields.map((field) => field.key),
+  ...peakAdvancedFieldKeys,
+  ...costAdvancedFields.map((field) => field.key),
+  ...tariffAdvancedFields.map((field) => field.key),
+  ...financeAdvancedFields.map((field) => field.key),
+  "analysisYears",
+  "includeVatInCapex"
+].map(String);
+
 export function QuickSizingAssumptionFlow() {
   const basicInfo = useQuickSizingStore((state) => state.basicInfo);
   const analysisRun = useQuickSizingStore((state) => state.analysisRun);
@@ -119,9 +137,12 @@ export function QuickSizingAssumptionFlow() {
   const metrics = useMemo(() => calculateQuickSizingMetrics(assumptions, basicInfo), [assumptions, basicInfo]);
   const financialMetrics = useMemo(() => calculateQuickSizingCandidateMetrics(assumptions, basicInfo), [assumptions, basicInfo]);
   const hasPeakShaving = (basicInfo?.bessObjectives ?? []).includes("peak_shaving");
-  const technicalFields = hasPeakShaving
-    ? [...technicalPrimaryFields, ...operatingAdvancedFields, ...peakAdvancedFields]
-    : [...technicalPrimaryFields, ...operatingAdvancedFields];
+  const advancedDirtyCount = useMemo(() => {
+    return dirtyFields.filter((field) => {
+      const key = String(field);
+      return advancedAssumptionKeys.includes(key) && (hasPeakShaving || !peakAdvancedFieldKeys.includes(key as NumericAssumptionKey));
+    }).length;
+  }, [dirtyFields, hasPeakShaving]);
   const demandChargeKey = [
     assumptions.demandChargeApplicability,
     assumptions.demandChargeMode,
@@ -197,7 +218,7 @@ export function QuickSizingAssumptionFlow() {
         <Stepper />
       </div>
 
-      <Card className="mt-4 rounded-xl bg-white p-4 shadow-panel">
+      <Card className="mt-4 rounded-xl bg-white p-3 shadow-panel">
         <div className="flex flex-wrap items-center gap-2">
           <strong className="mr-1 text-sm text-brand-navy">Dữ liệu kế thừa:</strong>
           {inherited.map((item) => <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-brand-navy" key={item}>{item}</span>)}
@@ -223,127 +244,120 @@ export function QuickSizingAssumptionFlow() {
         ) : null}
       </Card>
 
-      <Card className="mt-4 rounded-xl bg-white p-3 shadow-panel">
-        <div className="grid grid-cols-4 gap-2.5 max-lg:grid-cols-2 max-sm:grid-cols-1">
+      <Card className="mt-4 rounded-xl bg-white p-2 shadow-panel">
+        <div className="grid grid-cols-[repeat(3,minmax(0,1fr))_minmax(160px,0.8fr)] gap-1.5 max-lg:grid-cols-2 max-sm:grid-cols-1">
           {scenarioCards.map(({ id, title, description, icon: Icon }) => {
             const active = scenario === id;
             return (
-              <button className={cn("grid min-h-[68px] grid-cols-[34px_1fr] items-center gap-3 rounded-lg border px-3 py-2 text-left", active ? "border-brand-blue bg-blue-50/70" : "border-brand-line bg-white hover:border-brand-blue")} key={id} onClick={() => selectScenario(id)} type="button">
-                <span className={cn("grid size-8 place-items-center rounded-md", active ? "bg-brand-blue text-white" : "bg-slate-100 text-brand-muted")}><Icon size={17} /></span>
-                <span><strong className="block text-sm text-brand-navy">{title}</strong><small className="mt-1 block text-xs font-medium text-brand-muted">{description}</small></span>
+              <button className={cn("grid min-h-14 grid-cols-[30px_1fr] items-center gap-2 rounded-lg border px-3 py-2 text-left transition", active ? "border-brand-blue bg-blue-50/80 shadow-sm" : "border-transparent bg-white hover:border-brand-line hover:bg-slate-50")} key={id} onClick={() => selectScenario(id)} type="button">
+                <span className={cn("grid size-7 place-items-center rounded-md", active ? "bg-brand-blue text-white" : "bg-slate-100 text-brand-muted")}><Icon size={15} /></span>
+                <span><strong className="block text-sm text-brand-navy">{title}</strong><small className="block truncate text-xs font-medium text-brand-muted">{description}</small></span>
               </button>
             );
           })}
-          <div className={cn("grid min-h-[68px] grid-cols-[34px_1fr] items-center gap-3 rounded-lg border px-3 py-2", scenario === "custom" ? "border-brand-blue bg-blue-50/70" : "border-brand-line bg-white")}>
-            <span className="grid size-8 place-items-center rounded-md bg-slate-100 text-brand-muted"><SlidersHorizontal size={17} /></span>
-            <span><strong className="block text-sm text-brand-navy">Tùy chỉnh</strong><small className="mt-1 block text-xs font-medium text-brand-muted">Tự động kích hoạt khi sửa giá trị</small></span>
+          <div className={cn("grid min-h-14 grid-cols-[30px_1fr] items-center gap-2 rounded-lg border px-3 py-2", scenario === "custom" ? "border-purple-300 bg-purple-50/70" : "border-transparent bg-slate-50")}>
+            <span className="grid size-7 place-items-center rounded-md bg-white text-brand-muted"><SlidersHorizontal size={15} /></span>
+            <span><strong className="block text-sm text-brand-navy">Tùy chỉnh</strong><small className="block truncate text-xs font-medium text-brand-muted">Tự động khi sửa giá trị</small></span>
           </div>
         </div>
       </Card>
 
-      <div className="mt-5 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_390px] items-start gap-5 max-2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_360px] max-xl:grid-cols-1">
-        <FieldCard description="Các thông số kỹ thuật chính được cập nhật tức thời khi điều chỉnh." icon={BatteryCharging} title="Cấu hình kỹ thuật">
-          <FieldGrid fields={technicalFields} mode="slider" values={assumptions} onChange={updateNumericAssumption} />
-        </FieldCard>
-
-        <FieldCard description="Đơn giá thiết bị, O&M và tỷ lệ EPC cho cấu hình đang nhập." icon={WalletCards} title="Chi phí đầu tư & vận hành">
-          <CostCatalogNotice isPreliminary={costModelIsPreliminary} source={assumptions.costModelSourceName} version={assumptions.costCatalogVersion} />
-          <FieldGrid fields={costFields} mode="slider" values={assumptions} onChange={updateNumericAssumption} />
-          <EpcRateSlider
-            assumptions={assumptions}
-            capex={capexPreview}
-            onChange={(value) => updateAssumption("epcManualRatePct", value)}
-            onResetAuto={resetEpcToAuto}
-          />
-          <EquipmentCostScopePanel assumptions={assumptions} />
-        </FieldCard>
-
-        <aside className="sticky top-24 h-fit max-xl:static">
-          <div className="grid max-h-[calc(100vh-120px)] gap-4 overflow-auto pr-1 max-xl:max-h-none max-xl:overflow-visible max-xl:pr-0">
-            <Card className="overflow-hidden rounded-2xl border-0 bg-gradient-to-br from-brand-navy via-[#123f77] to-brand-blue p-5 text-white shadow-panel">
-              <div className="flex items-start justify-between gap-3"><span className="grid size-10 place-items-center rounded-xl bg-white/10"><Activity size={20} /></span><span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-blue-50">Cập nhật tức thời</span></div>
-              <h2 className="mt-5 text-xl font-bold">Cấu hình đang nhập</h2>
-              <p className="mt-1 text-sm font-medium leading-6 text-blue-100">Theo dõi nhanh quy mô và khả năng đáp ứng của BESS.</p>
-            </Card>
-            <Card className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
-              <div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-blue-50 text-brand-blue"><Sparkles size={18} /></span><div><strong className="block text-sm text-brand-navy">Sẵn sàng xem kết quả</strong><span className="text-xs font-medium text-brand-muted">{dirtyFields.length > 0 ? `Đã chỉnh sửa ${dirtyFields.length} giả định` : "Đang dùng bộ đề xuất"}</span></div></div>
-              <div className="mt-4 grid gap-2">
-                <Link className={buttonVariants({ className: "h-11 w-full" })} href="/quick-sizing/ket-qua"><Zap size={18} />Tính kết quả<ArrowRight size={18} /></Link>
-                <button className={buttonVariants({ variant: "secondary", className: "h-10 w-full" })} onClick={resetAssumptions} type="button"><RotateCcw size={16} />Khôi phục đề xuất</button>
-                <Link className="text-center text-xs font-bold text-brand-muted hover:text-brand-blue" href="/quick-sizing"><ArrowLeft className="mr-1 inline" size={13} />Quay lại Bước 1</Link>
-              </div>
-            </Card>
-            <Summary title="Thông số chính">
-              <SummaryRow label="Công suất" value={`${formatNumber(metrics.powerKw, 0)} kW`} />
-              <SummaryRow label="Dung lượng" value={`${formatNumber(metrics.energyKwh, 0)} kWh`} />
-              <SummaryRow label="Thời lượng danh định" value={`${formatNumber(metrics.durationHours, 2)} giờ`} />
-              <SummaryRow label="Năng lượng khả dụng" value={`${formatNumber(metrics.usableEnergyKwh, 0)} kWh`} />
-              {hasPeakShaving ? (
-                <>
-                  <SummaryRow label="Cửa sổ cắt đỉnh" value={`${formatNumber(assumptions.peakEventDurationHours, 1)} giờ`} />
-                  <SummaryRow label="Mức đáp ứng dự kiến" value={baseCandidatePreview?.technicalCoveragePct !== null && baseCandidatePreview?.technicalCoveragePct !== undefined ? formatPercent(baseCandidatePreview.technicalCoveragePct) : "Chưa tính"} />
-                </>
-              ) : null}
-            </Summary>
-            <Summary title="CAPEX cấu hình đang nhập">
-              <SummaryRow label="Pin" value={formatVnd(capexPreview.batteryCostVnd)} />
-              <SummaryRow label="PCS" value={formatVnd(capexPreview.pcsCostVnd)} />
-              <SummaryRow label="EPC" value={formatVnd(capexPreview.epcAllInVnd)} />
-              <SummaryRow label="Tổng CAPEX" value={formatVnd(capexPreview.totalCapexVnd)} />
-            </Summary>
-            <Summary title="Phương án tài chính tham khảo">
-              <SummaryRow label="Hiệu quả dự án" value={resultPreview.recommendedOption ? "Đạt tiêu chí dự án" : "Chưa đạt"} />
-              <SummaryRow label="Khả năng tài trợ" value={resultPreview.financingRecommendedOption ? "Đạt tiêu chí vốn chủ và trả nợ" : "Chưa đạt"} />
-              <SummaryRow label="Tiết kiệm/năm" value={formatVnd(financialMetrics.annualSavingVnd)} />
-              <SummaryRow label="Hoàn vốn dự án" value={formatPayback(financialMetrics.paybackYears)} />
-              <SummaryRow label={`NPV dự án ${assumptions.analysisYears} năm`} value={formatVnd(financialMetrics.npvVnd)} />
-              <SummaryRow label="IRR dự án" value={formatPercent(financialMetrics.irrPct)} />
-              <SummaryRow label="Khoản vay" value={formatVnd(financialMetrics.debtAmountVnd)} />
-              <SummaryRow label="Vốn chủ ban đầu" value={formatVnd(financialMetrics.equityInvestmentVnd)} />
-              <SummaryRow label="Tổng lãi vay" value={formatVnd(financialMetrics.totalInterestVnd)} />
-              <SummaryRow label="Hoàn vốn vốn chủ" value={formatPayback(financialMetrics.equityPaybackYears)} />
-              <SummaryRow label={`NPV vốn chủ ${assumptions.analysisYears} năm`} value={formatVnd(financialMetrics.equityNpvVnd)} />
-              <SummaryRow label="IRR vốn chủ" value={formatPercent(financialMetrics.equityIrrPct)} />
-              <SummaryRow label="DSCR thấp nhất" value={financialMetrics.minimumDscr === null ? "Không có dư nợ" : `${formatNumber(financialMetrics.minimumDscr, 2)}x`} />
-              {financialPreviewOption && (financialPreviewOption.powerKw !== assumptions.powerKw || financialPreviewOption.energyKwh !== assumptions.energyKwh) ? (
-                <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs font-semibold leading-5 text-brand-muted">
-                  Phương án tài chính tham khảo: {formatNumber(financialPreviewOption.powerKw, 0)} kW / {formatNumber(financialPreviewOption.energyKwh, 0)} kWh
-                </p>
-              ) : null}
-              {candidateShiftMessage ? <p className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-semibold leading-5 text-brand-navy">{candidateShiftMessage}</p> : null}
-            </Summary>
-            {summaryWarnings.length > 0 ? (
-              <Card className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 shadow-sm">
-                <SectionNotice messages={summaryWarnings} />
-              </Card>
-            ) : null}
+      <div className="mt-5">
+        <FieldCard description="Chỉ giữ các giả định kỹ thuật tác động trực tiếp tới quy mô BESS ở lớp đầu tiên." icon={BatteryCharging} title="Cấu hình BESS chính">
+          <FieldGrid className="grid-cols-4 max-xl:grid-cols-2 max-sm:grid-cols-1" fields={technicalPrimaryFields} mode="slider" values={assumptions} onChange={updateNumericAssumption} />
+          <div className="mt-4 grid grid-cols-4 gap-3 max-xl:grid-cols-2 max-sm:grid-cols-1">
+            <CompactLine label="Thời lượng danh định" strong value={`${formatNumber(metrics.durationHours, 2)} giờ`} />
+            <CompactLine label="Năng lượng khả dụng" strong value={`${formatNumber(metrics.usableEnergyKwh, 0)} kWh`} />
+            <CompactLine label="Chu kỳ/ngày" value={`${formatNumber(assumptions.cyclesPerDay, 1)} chu kỳ`} />
+            <CompactLine label="Ngày vận hành" value={`${formatNumber(assumptions.operatingDaysPerYear, 0)} ngày/năm`} />
           </div>
-        </aside>
+        </FieldCard>
       </div>
 
-      <div className="mt-5">
-        <FieldCard description="Giá điện năng, tài chính và giá công suất theo cấp điện áp Bước 1." icon={CircleDollarSign} title="Biểu giá & giả định tài chính">
-          <div className="grid grid-cols-3 items-start gap-6 max-xl:grid-cols-1">
-            <section>
-              <h3 className="mb-3 text-sm font-bold text-brand-navy">Biểu giá điện năng</h3>
-              <FieldGrid fields={tariffFields} mode="slider" values={assumptions} onChange={updateNumericAssumption} />
-            </section>
-            <section>
-              <h3 className="mb-3 text-sm font-bold text-brand-navy">Tài chính</h3>
-              <FieldGrid fields={financeFields} mode="slider" values={assumptions} onChange={updateNumericAssumption} />
-              <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-semibold leading-5 text-brand-muted">
-                Khoản vay được giải ngân tại năm 0 và trả gốc đều hằng năm. Nếu thời hạn vay dài hơn kỳ phân tích, phần dư nợ còn lại được tất toán ở năm cuối.
+      <div className="mt-5 grid grid-cols-[minmax(0,1fr)_380px] items-start gap-5 max-2xl:grid-cols-[minmax(0,1fr)_360px] max-xl:grid-cols-1">
+        <div className="grid gap-5">
+          <div className="grid grid-cols-2 gap-5 max-lg:grid-cols-1">
+            <FieldCard description="Đơn giá thiết bị, O&M và EPC cho cấu hình đang nhập." icon={WalletCards} title="Chi phí đầu tư & vận hành">
+              <CostCatalogNotice isPreliminary={costModelIsPreliminary} source={assumptions.costModelSourceName} version={assumptions.costCatalogVersion} />
+              <FieldGrid fields={costMainFields} mode="slider" values={assumptions} onChange={updateNumericAssumption} />
+              <EpcRateSlider
+                assumptions={assumptions}
+                capex={capexPreview}
+                onChange={(value) => updateAssumption("epcManualRatePct", value)}
+                onResetAuto={resetEpcToAuto}
+              />
+              <EquipmentCostScopePanel assumptions={assumptions} />
+            </FieldCard>
+
+            <FieldCard description="Biểu giá điện năng và giá công suất theo cấp điện áp Bước 1." icon={CircleDollarSign} title="Biểu giá & giá công suất">
+              <FieldGrid fields={tariffMainFields} mode="slider" values={assumptions} onChange={updateNumericAssumption} />
+              <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/30 p-4">
+                <DemandChargePanel assumptions={assumptions} onChange={(value) => updateAssumption("demandChargeInputVndPerKwMonth", value)} onReset={resetDemandChargeToStep1Voltage} />
               </div>
-              <div className="mt-3 grid grid-cols-2 gap-3 max-sm:grid-cols-1">
-                <label className="grid gap-1.5 text-sm font-semibold text-brand-navy">Thời hạn phân tích<select className="h-10 rounded-lg border border-brand-line bg-white px-3" value={assumptions.analysisYears} onChange={(event) => updateAssumption("analysisYears", Number(event.target.value))}><option value={5}>5 năm</option><option value={10}>10 năm</option><option value={15}>15 năm</option></select></label>
-                <label className="grid gap-1.5 text-sm font-semibold text-brand-navy">Tính VAT vào tổng CAPEX<select className="h-10 rounded-lg border border-brand-line bg-white px-3" value={assumptions.includeVatInCapex ? "yes" : "no"} onChange={(event) => updateAssumption("includeVatInCapex", event.target.value === "yes")}><option value="no">Không</option><option value="yes">Có</option></select></label>
-              </div>
-            </section>
-            <section>
-              <DemandChargePanel assumptions={assumptions} onChange={(value) => updateAssumption("demandChargeInputVndPerKwMonth", value)} onReset={resetDemandChargeToStep1Voltage} />
-            </section>
+            </FieldCard>
           </div>
-        </FieldCard>
+
+          <FieldCard description="Các thông số vốn vay và chiết khấu chính của phương án tài chính." icon={Activity} title="Tài chính dự án">
+            <FieldGrid className="grid-cols-2 gap-4 max-md:grid-cols-1" fields={financeMainFields} mode="slider" variant="compact" values={assumptions} onChange={updateNumericAssumption} />
+            <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-semibold leading-5 text-brand-muted">
+              Khoản vay được giải ngân tại năm 0 và trả gốc đều hằng năm. Nếu thời hạn vay dài hơn kỳ phân tích, phần dư nợ còn lại được tất toán ở năm cuối.
+            </div>
+          </FieldCard>
+
+          <FieldCard description="Các giả định ít chỉnh hơn được gom lại để không làm nhiễu lớp kiểm tra chính." icon={SlidersHorizontal} title="Giả định nâng cao">
+            <details className="group">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-brand-navy marker:hidden">
+                <span>Thông số vận hành, tăng trưởng và kỳ phân tích</span>
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-brand-muted shadow-sm">{advancedDirtyCount > 0 ? `${advancedDirtyCount} đã chỉnh` : "Mặc định"}</span>
+              </summary>
+              <div className="mt-5 grid gap-5">
+                <section>
+                  <h3 className="mb-3 text-sm font-bold text-brand-navy">Vận hành pin</h3>
+                  <FieldGrid className="grid-cols-3 max-lg:grid-cols-1" fields={operatingAdvancedFields} mode="slider" values={assumptions} onChange={updateNumericAssumption} />
+                </section>
+                {hasPeakShaving ? (
+                  <section>
+                    <h3 className="mb-3 text-sm font-bold text-brand-navy">Cắt đỉnh</h3>
+                    <FieldGrid className="grid-cols-3 max-lg:grid-cols-1" fields={peakAdvancedFields} mode="slider" values={assumptions} onChange={updateNumericAssumption} />
+                  </section>
+                ) : null}
+                <div className="grid grid-cols-3 gap-5 max-xl:grid-cols-1">
+                  <section>
+                    <h3 className="mb-3 text-sm font-bold text-brand-navy">Chi phí nâng cao</h3>
+                    <FieldGrid fields={costAdvancedFields} mode="slider" values={assumptions} onChange={updateNumericAssumption} />
+                  </section>
+                  <section>
+                    <h3 className="mb-3 text-sm font-bold text-brand-navy">Biểu giá nâng cao</h3>
+                    <FieldGrid fields={tariffAdvancedFields} mode="slider" values={assumptions} onChange={updateNumericAssumption} />
+                  </section>
+                  <section>
+                    <h3 className="mb-3 text-sm font-bold text-brand-navy">Tài chính nâng cao</h3>
+                    <FieldGrid fields={financeAdvancedFields} mode="slider" values={assumptions} onChange={updateNumericAssumption} />
+                    <div className="mt-3 grid gap-3">
+                      <label className="grid gap-1.5 text-sm font-semibold text-brand-navy">Thời hạn phân tích<select className="h-10 rounded-lg border border-brand-line bg-white px-3" value={assumptions.analysisYears} onChange={(event) => updateAssumption("analysisYears", Number(event.target.value))}><option value={5}>5 năm</option><option value={10}>10 năm</option><option value={15}>15 năm</option></select></label>
+                      <label className="grid gap-1.5 text-sm font-semibold text-brand-navy">Tính VAT vào tổng CAPEX<select className="h-10 rounded-lg border border-brand-line bg-white px-3" value={assumptions.includeVatInCapex ? "yes" : "no"} onChange={(event) => updateAssumption("includeVatInCapex", event.target.value === "yes")}><option value="no">Không</option><option value="yes">Có</option></select></label>
+                    </div>
+                  </section>
+                </div>
+              </div>
+            </details>
+          </FieldCard>
+        </div>
+
+        <LiveAssumptionSummary
+          assumptions={assumptions}
+          baseCandidatePreview={baseCandidatePreview}
+          capex={capexPreview}
+          candidateShiftMessage={candidateShiftMessage}
+          dirtyCount={dirtyFields.length}
+          financialMetrics={financialMetrics}
+          financialPreviewOption={financialPreviewOption}
+          hasPeakShaving={hasPeakShaving}
+          metrics={metrics}
+          resultPreview={resultPreview}
+          summaryWarnings={summaryWarnings}
+          onReset={resetAssumptions}
+        />
       </div>
     </section>
   );
@@ -357,26 +371,32 @@ function Stepper() {
   ] as const;
 
   return (
-    <div className="grid h-[68px] min-w-[560px] grid-cols-[auto_1fr_auto_1fr_auto] items-center rounded-xl border border-brand-line bg-white px-5 shadow-panel max-sm:min-w-0 max-sm:px-3">
-      {steps.map((step, index) => (
-        <div className="contents" key={step.label}>
-          <span className="flex min-w-0 items-center gap-2">
-            <span
-              className={cn(
-                "grid size-8 shrink-0 place-items-center rounded-full border text-sm font-bold",
-                step.status === "done" && "border-green-200 bg-green-50 text-brand-green",
-                step.status === "active" && "border-brand-blue bg-brand-blue text-white",
-                step.status === "upcoming" && "border-slate-200 bg-slate-100 text-brand-muted"
-              )}
-            >
-              {step.status === "done" ? <Check size={17} /> : step.number}
+    <>
+      <div className="grid h-12 min-w-[480px] grid-cols-[auto_1fr_auto_1fr_auto] items-center rounded-xl border border-brand-line bg-white px-4 shadow-panel max-sm:hidden">
+        {steps.map((step, index) => (
+          <div className="contents" key={step.label}>
+            <span className="flex min-w-0 items-center gap-2">
+              <span
+                className={cn(
+                  "grid size-7 shrink-0 place-items-center rounded-full border text-xs font-bold",
+                  step.status === "done" && "border-green-200 bg-green-50 text-brand-green",
+                  step.status === "active" && "border-brand-blue bg-brand-blue text-white",
+                  step.status === "upcoming" && "border-slate-200 bg-slate-100 text-brand-muted"
+                )}
+              >
+                {step.status === "done" ? <Check size={15} /> : step.number}
+              </span>
+              <strong className={cn("truncate text-xs", step.status === "active" ? "text-brand-blue" : "text-brand-muted")}>{step.label}</strong>
             </span>
-            <strong className={cn("truncate text-xs", step.status === "active" ? "text-brand-blue" : "text-brand-muted")}>{step.label}</strong>
-          </span>
-          {index < steps.length - 1 ? <span className={cn("mx-3 border-t-2 border-dashed", index === 0 ? "border-green-200" : "border-blue-200")} /> : null}
-        </div>
-      ))}
-    </div>
+            {index < steps.length - 1 ? <span className={cn("mx-3 border-t-2 border-dashed", index === 0 ? "border-green-200" : "border-blue-200")} /> : null}
+          </div>
+        ))}
+      </div>
+      <div className="hidden rounded-xl border border-brand-line bg-white px-4 py-3 shadow-panel max-sm:flex max-sm:items-center max-sm:justify-between">
+        <span className="text-xs font-bold text-brand-muted">Bước 2/3</span>
+        <strong className="text-sm text-brand-blue">Giả định</strong>
+      </div>
+    </>
   );
 }
 
@@ -399,6 +419,184 @@ function FieldCard({
       </div>
       <div className="p-6">{children}</div>
     </Card>
+  );
+}
+
+function LiveAssumptionSummary({
+  assumptions,
+  baseCandidatePreview,
+  capex,
+  candidateShiftMessage,
+  dirtyCount,
+  financialMetrics,
+  financialPreviewOption,
+  hasPeakShaving,
+  metrics,
+  resultPreview,
+  summaryWarnings,
+  onReset
+}: {
+  assumptions: QuickSizingAssumptions;
+  baseCandidatePreview: SizingCandidateResult | null;
+  capex: CapexBreakdown | null;
+  candidateShiftMessage: string | null;
+  dirtyCount: number;
+  financialMetrics: QuickSizingMetrics;
+  financialPreviewOption: SizingCandidateResult | null;
+  hasPeakShaving: boolean;
+  metrics: QuickSizingMetrics;
+  resultPreview: QuickSizingResult;
+  summaryWarnings: string[];
+  onReset: () => void;
+}) {
+  const firstWarning = summaryWarnings[0] ?? null;
+  const remainingWarnings = summaryWarnings.slice(1);
+  const coverageLabel = baseCandidatePreview?.technicalCoveragePct !== null && baseCandidatePreview?.technicalCoveragePct !== undefined
+    ? formatPercent(baseCandidatePreview.technicalCoveragePct)
+    : "Chưa tính";
+  const financialOptionDiffers = Boolean(
+    financialPreviewOption && (financialPreviewOption.powerKw !== assumptions.powerKw || financialPreviewOption.energyKwh !== assumptions.energyKwh)
+  );
+  const costModelIsPreliminary = assumptions.costModelStatus !== "confirmed";
+
+  return (
+    <aside className="sticky top-24 h-fit max-xl:order-first max-xl:static">
+      <Card className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-panel">
+        <div className="bg-gradient-to-br from-brand-navy via-[#123f77] to-brand-blue px-5 py-4 text-white">
+          <div className="flex items-start justify-between gap-3">
+            <span className="grid size-9 place-items-center rounded-xl bg-white/10"><Activity size={18} /></span>
+            <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-blue-50">Cập nhật realtime</span>
+          </div>
+          <h2 className="mt-4 text-lg font-bold">Cấu hình đang xét</h2>
+          <div className="mt-3 grid grid-cols-3 gap-2 text-xs font-semibold text-blue-50">
+            <span><b className="block text-base text-white">{formatNumber(metrics.powerKw, 0)}</b>kW</span>
+            <span><b className="block text-base text-white">{formatNumber(metrics.energyKwh, 0)}</b>kWh</span>
+            <span><b className="block text-base text-white">{formatNumber(metrics.durationHours, 2)}</b>giờ</span>
+          </div>
+        </div>
+
+        <div className="grid gap-4 p-4">
+          <div className="grid grid-cols-2 gap-3">
+            <SidebarKpi label="Tổng CAPEX" value={formatVnd(capex?.totalCapexVnd ?? 0)} />
+            <SidebarKpi label="Tiết kiệm/năm" value={formatVnd(financialMetrics.annualSavingVnd)} />
+            <SidebarKpi label="Payback dự án" value={formatPayback(financialMetrics.paybackYears)} />
+            <SidebarKpi label={`NPV ${assumptions.analysisYears} năm`} value={formatVnd(financialMetrics.npvVnd)} />
+          </div>
+
+          <div className="grid gap-2">
+            <StatusRow label="Hiệu quả dự án" tone={resultPreview.recommendedOption ? "green" : "amber"} value={resultPreview.recommendedOption ? "Đạt tiêu chí" : "Chưa đạt"} />
+            <StatusRow label="Khả năng tài trợ" tone={resultPreview.financingRecommendedOption ? "green" : "amber"} value={resultPreview.financingRecommendedOption ? "Đạt tiêu chí" : "Chưa đạt"} />
+            <StatusRow label="Cost catalog" tone={costModelIsPreliminary ? "amber" : "green"} value={costModelIsPreliminary ? "Sơ bộ" : "Đã xác nhận"} />
+            <StatusRow label="Cảnh báo" tone={summaryWarnings.length > 0 ? "amber" : "green"} value={summaryWarnings.length > 0 ? `${summaryWarnings.length} lưu ý` : "Ổn"} />
+          </div>
+
+          <SidebarCapexBreakdown capex={capex} />
+
+          {firstWarning ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold leading-5 text-amber-800">
+              <p>{firstWarning}</p>
+              {remainingWarnings.length > 0 ? (
+                <details className="mt-1">
+                  <summary className="cursor-pointer font-bold">Xem thêm {remainingWarnings.length} lưu ý</summary>
+                  <div className="mt-1 grid gap-1">
+                    {remainingWarnings.map((warning) => <p key={warning}>{warning}</p>)}
+                  </div>
+                </details>
+              ) : null}
+            </div>
+          ) : null}
+
+          <details className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-brand-navy">
+            <summary className="cursor-pointer text-brand-blue">Xem chỉ số tài chính chi tiết</summary>
+            <div className="mt-3 grid gap-2">
+              <SummaryRow label="IRR dự án" value={formatPercent(financialMetrics.irrPct)} />
+              <SummaryRow label="Khoản vay" value={formatVnd(financialMetrics.debtAmountVnd)} />
+              <SummaryRow label="Vốn chủ ban đầu" value={formatVnd(financialMetrics.equityInvestmentVnd)} />
+              <SummaryRow label="Tổng lãi vay" value={formatVnd(financialMetrics.totalInterestVnd)} />
+              <SummaryRow label="Hoàn vốn vốn chủ" value={formatPayback(financialMetrics.equityPaybackYears)} />
+              <SummaryRow label={`NPV vốn chủ ${assumptions.analysisYears} năm`} value={formatVnd(financialMetrics.equityNpvVnd)} />
+              <SummaryRow label="IRR vốn chủ" value={formatPercent(financialMetrics.equityIrrPct)} />
+              <SummaryRow label="DSCR thấp nhất" value={financialMetrics.minimumDscr === null ? "Không có dư nợ" : `${formatNumber(financialMetrics.minimumDscr, 2)}x`} />
+              {hasPeakShaving ? (
+                <>
+                  <SummaryRow label="Cửa sổ cắt đỉnh" value={`${formatNumber(assumptions.peakEventDurationHours, 1)} giờ`} />
+                  <SummaryRow label="Mức đáp ứng dự kiến" value={coverageLabel} />
+                </>
+              ) : null}
+              {financialOptionDiffers && financialPreviewOption ? (
+                <p className="rounded-lg bg-white px-3 py-2 text-xs font-semibold leading-5 text-brand-muted">
+                  Phương án tài chính tham khảo: {formatNumber(financialPreviewOption.powerKw, 0)} kW / {formatNumber(financialPreviewOption.energyKwh, 0)} kWh
+                </p>
+              ) : null}
+              {candidateShiftMessage ? <p className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-semibold leading-5 text-brand-navy">{candidateShiftMessage}</p> : null}
+            </div>
+          </details>
+
+          <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-3">
+            <div className="flex items-center gap-3">
+              <span className="grid size-8 place-items-center rounded-lg bg-white text-brand-blue"><Sparkles size={16} /></span>
+              <div>
+                <strong className="block text-sm text-brand-navy">Sẵn sàng xem kết quả</strong>
+                <span className="text-xs font-medium text-brand-muted">{dirtyCount > 0 ? `Đã chỉnh sửa ${dirtyCount} giả định` : "Đang dùng bộ đề xuất"}</span>
+              </div>
+            </div>
+            <div className="mt-3 grid gap-2">
+              <Link className={buttonVariants({ className: "h-11 w-full" })} href="/quick-sizing/ket-qua"><Zap size={18} />Tính kết quả<ArrowRight size={18} /></Link>
+              <button className={buttonVariants({ variant: "secondary", className: "h-10 w-full" })} onClick={onReset} type="button"><RotateCcw size={16} />Khôi phục đề xuất</button>
+              <Link className="text-center text-xs font-bold text-brand-muted hover:text-brand-blue" href="/quick-sizing"><ArrowLeft className="mr-1 inline" size={13} />Quay lại Bước 1</Link>
+            </div>
+          </div>
+        </div>
+      </Card>
+    </aside>
+  );
+}
+
+function SidebarKpi({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+      <span className="block text-[11px] font-bold uppercase text-brand-muted">{label}</span>
+      <strong className="mt-1 block text-sm text-brand-navy">{value}</strong>
+    </div>
+  );
+}
+
+function StatusRow({ label, tone, value }: { label: string; tone: "amber" | "green"; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 text-xs font-semibold">
+      <span className="text-brand-muted">{label}</span>
+      <span className={cn("rounded-full px-2.5 py-1 font-bold", tone === "green" ? "bg-green-50 text-brand-green" : "bg-amber-50 text-amber-800")}>{value}</span>
+    </div>
+  );
+}
+
+function SidebarCapexBreakdown({ capex }: { capex: CapexBreakdown | null }) {
+  const total = capex?.totalCapexVnd ?? 0;
+  const items = [
+    { label: "Pin", value: capex?.batteryCostVnd ?? 0 },
+    { label: "PCS", value: capex?.pcsCostVnd ?? 0 },
+    { label: "EPC", value: capex?.epcAllInVnd ?? 0 },
+    { label: "VAT", value: capex?.vatVnd ?? 0 }
+  ].filter((item) => item.value > 0);
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white px-3 py-3">
+      <div className="mb-2 flex items-center justify-between text-xs font-bold text-brand-navy">
+        <span>Phân rã CAPEX</span>
+        <span>{formatVnd(total)}</span>
+      </div>
+      <div className="grid gap-2">
+        {items.map((item) => {
+          const width = total > 0 ? Math.max(4, Math.min(100, (item.value / total) * 100)) : 0;
+          return (
+            <div className="grid gap-1" key={item.label}>
+              <div className="flex justify-between gap-3 text-[11px] font-semibold text-brand-muted"><span>{item.label}</span><span>{formatVnd(item.value)}</span></div>
+              <div className="h-1.5 rounded-full bg-slate-100"><div className="h-full rounded-full bg-brand-blue" style={{ width: `${width}%` }} /></div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -752,9 +950,29 @@ function CompactSliderNumber({
   );
 }
 
-function FieldGrid({ columns = 1, fields, mode = "slider", values, onChange }: { columns?: 1 | 2; fields: NumberField[]; mode?: "slider" | "input"; values: QuickSizingAssumptions; onChange: (key: NumericAssumptionKey, value: number) => void }) {
+function FieldGrid({
+  className,
+  columns = 1,
+  fields,
+  mode = "slider",
+  variant = "default",
+  values,
+  onChange
+}: {
+  className?: string;
+  columns?: 1 | 2;
+  fields: NumberField[];
+  mode?: "slider" | "input";
+  variant?: "default" | "compact";
+  values: QuickSizingAssumptions;
+  onChange: (key: NumericAssumptionKey, value: number) => void;
+}) {
+  const controlGridClass = variant === "compact"
+    ? "grid-cols-[minmax(0,1fr)_120px] gap-3 max-sm:grid-cols-1"
+    : "grid-cols-[minmax(120px,1fr)_152px] gap-4 max-sm:grid-cols-1";
+
   return (
-    <div className={cn("grid gap-3", columns === 2 && "md:grid-cols-2")}>
+    <div className={cn("grid gap-3", columns === 2 && "md:grid-cols-2", className)}>
       {fields.map((field) => {
         const value = Number(values[field.key]);
         const percentage = Math.min(100, Math.max(0, ((value - field.min) / (field.max - field.min)) * 100));
@@ -762,19 +980,19 @@ function FieldGrid({ columns = 1, fields, mode = "slider", values, onChange }: {
 
         return (
           <label
-            className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50/40 p-3.5 transition hover:border-blue-200 hover:bg-blue-50/30 focus-within:border-brand-blue/40 focus-within:bg-blue-50/40"
+            className="grid min-w-0 w-full gap-3 rounded-xl border border-slate-200 bg-slate-50/40 p-3.5 transition hover:border-blue-200 hover:bg-blue-50/30 focus-within:border-brand-blue/40 focus-within:bg-blue-50/40"
             key={field.key}
           >
-            <span className="flex items-center justify-between gap-3 text-sm font-semibold text-brand-navy">
-              <span>{field.label}</span>
-              <small className="shrink-0 text-xs font-medium text-brand-muted">{field.unit}</small>
+            <span className="flex min-w-0 items-center justify-between gap-3 text-sm font-semibold text-brand-navy">
+              <span className="min-w-0 break-words">{field.label}</span>
+              <small className="shrink-0 text-right text-xs font-medium text-brand-muted">{field.unit}</small>
             </span>
-            <span className={cn("grid items-center gap-4", mode === "slider" ? "grid-cols-[minmax(120px,1fr)_152px] max-sm:grid-cols-1" : "grid-cols-1")}>
+            <span className={cn("grid min-w-0 items-center", mode === "slider" ? controlGridClass : "grid-cols-1")}>
               {mode === "slider" ? (
                 <input
                   aria-label={field.label}
                   aria-valuetext={`${formatNumber(value, 2)} ${field.unit}`}
-                  className="h-2.5 w-full cursor-pointer appearance-none rounded-full outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/25 [&::-moz-range-thumb]:size-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-[3px] [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:bg-brand-blue [&::-moz-range-thumb]:shadow-md [&::-webkit-slider-thumb]:size-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-[3px] [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-brand-blue [&::-webkit-slider-thumb]:shadow-md"
+                  className="h-2.5 min-w-0 w-full cursor-pointer appearance-none rounded-full outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/25 [&::-moz-range-thumb]:size-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-[3px] [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:bg-brand-blue [&::-moz-range-thumb]:shadow-md [&::-webkit-slider-thumb]:size-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-[3px] [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-brand-blue [&::-webkit-slider-thumb]:shadow-md"
                   min={field.min}
                   max={field.max}
                   step={field.step ?? 1}
@@ -818,7 +1036,7 @@ function EditableNumberInput({ field, value, onChange }: { field: NumberField; v
   return (
     <input
       aria-label={`${field.label} nhập trực tiếp`}
-      className="h-10 w-full rounded-lg border border-brand-line bg-white px-3 text-right text-sm font-semibold tabular-nums text-brand-navy outline-none transition focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/15"
+      className="h-10 min-w-0 w-full rounded-lg border border-brand-line bg-white px-3 text-right text-sm font-semibold tabular-nums text-brand-navy outline-none transition focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/15"
       inputMode={fractionDigits > 0 ? "decimal" : "numeric"}
       value={draft}
       onBlur={commit}
@@ -888,10 +1106,6 @@ function DraftNumberInput({
       }}
     />
   );
-}
-
-function Summary({ children, title }: { children: ReactNode; title: string }) {
-  return <Card className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm"><h3 className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-brand-muted">{title}</h3><div className="grid gap-2.5">{children}</div></Card>;
 }
 
 function SummaryRow({ label, value }: { label: string; value: string }) {

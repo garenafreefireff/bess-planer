@@ -13,6 +13,7 @@
   ShieldCheck,
   Zap
 } from "lucide-react";
+import Image from "next/image";
 import { PublicFooter } from "@/components/layout/public-footer";
 import { PublicHeader } from "@/components/layout/public-header";
 import { LogoStrip } from "@/features/landing/components/logo-strip";
@@ -92,7 +93,7 @@ export function ReportSamplesPage() {
         <section className="site-container">
           <Card className="rounded-xl bg-white p-3.5 shadow-none">
             <h2 className="text-[15px] font-bold text-brand-navy">Danh mục báo cáo mẫu</h2>
-            <div className="mt-3 grid grid-cols-4 gap-3 max-xl:grid-cols-2 max-md:grid-cols-1">
+            <div className="mt-4 grid grid-cols-2 items-stretch gap-4 max-lg:grid-cols-1">
               {reportCards.map((item) => (
                 <ReportCard key={item.title} {...item} />
               ))}
@@ -194,34 +195,37 @@ function ReportCard({ bullets, icon: Icon, image, text, title, tone }: (typeof r
   const downloadTone = tone === "green" ? "bg-brand-green hover:bg-brand-green/90" : tone === "orange" ? "bg-orange-500 hover:bg-orange-500/90" : tone === "purple" ? "bg-violet-600 hover:bg-violet-600/90" : "bg-brand-blue hover:bg-brand-blue/90";
 
   return (
-    <article className="grid min-h-[184px] grid-cols-[minmax(0,0.9fr)_164px] gap-3 overflow-hidden rounded-lg border border-brand-line bg-white p-3 max-sm:grid-cols-1">
-      <div className="flex min-w-0 flex-col">
-        <h3 className="flex items-center gap-2 text-[11px] font-bold leading-4 text-brand-navy">
-          <Icon className={accent} size={19} />
-          {title}
-        </h3>
-        <p className="mt-1.5 text-[9px] font-semibold leading-[1.45] text-brand-muted">{text}</p>
-        <div className="mt-1.5 grid gap-1">
-          {bullets.map((bullet) => (
-            <span className="flex items-center gap-1.5 text-[9px] font-semibold leading-[14px] text-brand-navy" key={bullet}>
-              <CheckCircle2 className={accent} size={11} />
-              {bullet}
-            </span>
-          ))}
+    <article className="grid h-full grid-rows-[1fr_auto] rounded-xl border border-brand-line bg-white p-4 shadow-sm">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_200px] gap-4 max-xl:grid-cols-[minmax(0,1fr)_174px] max-sm:grid-cols-1">
+        <div className="min-w-0">
+          <h3 className="flex min-w-0 items-center gap-2 text-[14px] font-bold leading-5 text-brand-navy">
+            <Icon className={cn("shrink-0", accent)} size={20} />
+            <span className="min-w-0">{title}</span>
+          </h3>
+          <p className="mt-2 text-[12px] font-semibold leading-5 text-brand-muted">{text}</p>
+          <div className="mt-3 grid gap-1.5">
+            {bullets.map((bullet) => (
+              <span className="flex min-w-0 items-start gap-2 text-[11px] font-semibold leading-4 text-brand-navy" key={bullet}>
+                <CheckCircle2 className={cn("mt-0.5 shrink-0", accent)} size={13} />
+                <span>{bullet}</span>
+              </span>
+            ))}
+          </div>
         </div>
-        <div className="mt-auto flex gap-1.5 pt-2.5">
-          <a className={buttonVariants({ variant: "secondary", size: "sm", className: "h-7 px-3 text-[9px]" })} href={image} target="_blank" rel="noreferrer">
-            Xem mẫu
-          </a>
-          <a className={buttonVariants({ size: "sm", className: cn("h-7 px-2.5 text-[9px] text-white", downloadTone) })} href={image} download>
-            <Download size={11} />
-            Tải mẫu PDF
-          </a>
-        </div>
+        <a className="flex aspect-[4/3] w-full min-w-0 max-w-[210px] items-center justify-center justify-self-end rounded-lg border border-brand-line bg-slate-50 p-2 transition hover:border-brand-blue/30 max-sm:max-w-none" href={image} target="_blank" rel="noreferrer">
+          <Image className="h-full w-full rounded-md object-contain" src={image} alt={`${title} preview`} width={320} height={240} loading="lazy" />
+        </a>
       </div>
-      <a className="group flex min-h-[158px] items-center justify-center overflow-hidden rounded-md border border-brand-line bg-slate-50" href={image} target="_blank" rel="noreferrer">
-        <img className="h-full w-full scale-[1.08] object-contain object-center transition-transform duration-300 group-hover:scale-[1.12]" src={image} alt={`${title} preview`} loading="lazy" />
-      </a>
+
+      <div className="mt-4 grid grid-cols-2 gap-2 border-t border-brand-line pt-3 max-[420px]:grid-cols-1">
+        <a className={buttonVariants({ variant: "secondary", size: "sm", className: "h-9 min-w-0 justify-center px-3 text-xs" })} href={image} target="_blank" rel="noreferrer">
+          Xem mẫu
+        </a>
+        <a className={buttonVariants({ size: "sm", className: cn("h-9 min-w-0 justify-center gap-1.5 px-3 text-xs text-white", downloadTone) })} href={image} download>
+          <Download className="shrink-0" size={14} />
+          <span>Tải mẫu PDF</span>
+        </a>
+      </div>
     </article>
   );
 }
@@ -235,5 +239,3 @@ function InfoItem({ icon: Icon, text, title, tone }: (typeof includedItems)[numb
     </div>
   );
 }
-
-

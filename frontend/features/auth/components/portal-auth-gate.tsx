@@ -147,7 +147,7 @@ export function PortalAuthGate({ children }: { children: ReactNode }) {
               Đăng nhập để quản lý dự án BESS và dữ liệu phân tích.
             </h1>
             <p className="mt-4 max-w-[640px] text-base font-medium leading-7 text-brand-muted">
-              Tài khoản portal đồng bộ với backend FastAPI, sử dụng access token cho các request đã xác thực.
+              Đăng nhập để quản lý dự án, dữ liệu phân tích và báo cáo của doanh nghiệp trên một không gian làm việc bảo mật.
             </p>
           </div>
 

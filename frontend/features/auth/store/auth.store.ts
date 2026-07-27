@@ -7,6 +7,7 @@ export interface AuthUser {
   representative_name: string;
   phone: string | null;
   industry: string | null;
+  organization_id: string | null;
   role: "customer" | "admin";
   status: "active" | "suspended";
   preferences: {
@@ -54,7 +55,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   setSession: (session) => {
     if (typeof window !== "undefined") {
       window.localStorage.setItem("access_token", session.access_token);
-      window.localStorage.setItem("refresh_token", session.refresh_token);
+      window.localStorage.removeItem("refresh_token");
     }
 
     set({
@@ -78,7 +79,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
 
     const accessToken = window.localStorage.getItem("access_token");
-    const refreshToken = window.localStorage.getItem("refresh_token");
+    window.localStorage.removeItem("refresh_token");
+    const refreshToken = null;
     set({ accessToken, refreshToken });
     return { accessToken, refreshToken };
   }

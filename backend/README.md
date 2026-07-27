@@ -40,6 +40,22 @@ POST /api/v1/auth/logout
 GET  /api/v1/auth/me
 ```
 
+## Seed admin account
+
+Admin accounts are not created from the public register form. Create the first admin
+directly from the backend with MongoDB running:
+
+```powershell
+python seed_admin.py --email admin@datainsight.vn --password "ChangeMe123!" --name "EnergyInsight Admin" --phone "0916848638"
+```
+
+If the email already exists, the command promotes it to `admin` and keeps the current
+password. Add `--reset-password` to rotate the password:
+
+```powershell
+python seed_admin.py --email admin@datainsight.vn --password "NewStrongPassword123!" --name "EnergyInsight Admin" --reset-password
+```
+
 ## Project endpoints
 
 ```text
@@ -111,6 +127,29 @@ GET  /api/v1/analyses/{analysis_run_id}
 
 The transient Sizing Lab endpoint runs Oracle LP-PF, Pareto and SLSM, then stores the
 analysis result without persisting the source Load/PV files.
+
+## Quick Sizing financing model
+
+The Step 3 frontend result engine keeps project and financing returns separate:
+
+- Project cash flow uses unlevered FCFF. Project NPV is discounted by WACC; Project IRR
+  and Project Payback therefore do not change only because the debt structure changes.
+- Debt drawdown at year 0 equals CAPEX multiplied by `debt_pct`.
+- The default repayment method is equal annual principal over `loan_tenor_years`.
+- Interest equals opening debt multiplied by `interest_pct`.
+- Interest reduces taxable income, limited to the tax otherwise payable by the project.
+- Equity cash flow (FCFE) equals FCFF plus the interest tax shield, less interest and
+  principal repayment.
+- Equity NPV uses the implied cost of equity derived from WACC, after-tax debt cost and
+  debt/equity weights. Equity IRR and Equity Payback use FCFE.
+- DSCR equals CFADS divided by principal plus interest. If the loan tenor exceeds the
+  analysis horizon, the remaining balance is treated as a balloon repayment in the final
+  analysis year.
+
+The result UI exposes the complete debt schedule, Project and Equity KPIs, minimum and
+average DSCR, financing warnings, and a combined project/equity cumulative cash-flow
+chart. The sizing recommendation remains project-based so leverage alone cannot change
+the recommended technical configuration.
 
 ## Lead pipeline
 

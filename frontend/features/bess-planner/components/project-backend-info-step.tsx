@@ -35,23 +35,23 @@ export function ProjectBackendInfoStep({ value, onChange, sites, catalogItems, l
     <section>
       <h2 className="text-xl font-bold text-brand-navy">1. Thông tin dự án</h2>
       <p className="mt-2 text-sm font-medium text-brand-muted">
-        Chọn Site và BESS catalog đang có trên backend trước khi tạo dự án.
+        Chọn địa điểm dự án và cấu hình BESS phù hợp trước khi tiếp tục.
       </p>
       <div className="mt-5 grid grid-cols-2 gap-4 max-md:grid-cols-1">
         <BackendSelect
           disabled={loading}
-          label="Site trên backend"
+          label="Địa điểm dự án"
           onChange={chooseSite}
           options={sites.map((site) => ({ label: `${site.name} · ${site.voltage_level}`, value: site.id }))}
-          placeholder={loading ? "Đang tải site..." : sites.length ? "Chọn site" : "Chưa có site trên backend"}
+          placeholder={loading ? "Đang tải địa điểm..." : sites.length ? "Chọn địa điểm" : "Chưa có địa điểm dự án"}
           value={value.siteId}
         />
         <BackendSelect
           disabled={loading}
-          label="BESS catalog"
+          label="Cấu hình BESS"
           onChange={(bessCatalogId) => onChange({ ...value, bessCatalogId })}
           options={catalogItems.map((item) => ({ label: `${item.name} · v${item.version}`, value: item.id }))}
-          placeholder={loading ? "Đang tải catalog..." : catalogItems.length ? "Chọn catalog" : "Chưa có catalog hoạt động"}
+          placeholder={loading ? "Đang tải cấu hình..." : catalogItems.length ? "Chọn cấu hình BESS" : "Chưa có cấu hình BESS khả dụng"}
           value={value.bessCatalogId}
         />
         <TextField label="Tên dự án" value={value.name} onChange={(name) => onChange({ ...value, name })} placeholder="Ví dụ: Nhà máy ABC - Bình Dương" />
@@ -62,12 +62,12 @@ export function ProjectBackendInfoStep({ value, onChange, sites, catalogItems, l
       </div>
       {!loading && (!sites.length || !catalogItems.length) ? (
         <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold leading-6 text-amber-800">
-          Cần có ít nhất một Site và một BESS catalog đang hoạt động trên backend trước khi tạo dự án. <a className="ml-1 underline" href="/customer-portal?section=data">Mở quản lý dữ liệu</a>.
+          Cần tạo ít nhất một địa điểm dự án và một cấu hình BESS khả dụng trước khi tiếp tục. <a className="ml-1 underline" href="/customer-portal?section=data">Mở quản lý dữ liệu</a>.
         </div>
       ) : null}
       {selectedSite ? (
         <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-medium text-brand-muted">
-          Site đã chọn: <strong className="text-brand-navy">{selectedSite.name}</strong> · Công suất hợp đồng {formatNumber(selectedSite.contract_capacity_kw, 0)} kW.
+          Địa điểm đã chọn: <strong className="text-brand-navy">{selectedSite.name}</strong> · Công suất hợp đồng {formatNumber(selectedSite.contract_capacity_kw, 0)} kW.
         </div>
       ) : null}
     </section>

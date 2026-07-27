@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { toast } from "sonner";
 import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { leadsApi } from "@/lib/api/leads.api";
 import { cn } from "@/lib/utils";
 import { buildSizingOptions, formatNumber } from "@/features/quick-sizing/data/quick-sizing-model";
 import { useQuickSizingStore } from "@/features/quick-sizing/data/quick-sizing-store";
@@ -174,7 +175,7 @@ export function BessPlannerProjectWizard() {
         setSites(sitePage.items.filter((item) => item.status === "active"));
         setCatalogItems(catalogPage.items.filter((item) => item.status === "active"));
       } catch (error) {
-        if (active) toast.error(`Không tải được site/catalog: ${readWorkspaceApiError(error)}`);
+        if (active) toast.error(`Không thể tải địa điểm hoặc cấu hình BESS: ${readWorkspaceApiError(error)}`);
       } finally {
         if (active) setResourceLoading(false);
       }
@@ -221,7 +222,18 @@ export function BessPlannerProjectWizard() {
     if (raw) {
       try {
         const draft = JSON.parse(raw) as { project?: ProjectInfo; config?: ModelConfig; currentStep?: number };
-        if (draft.project) setProject({ name: "", location: "", industry: "", voltageLevel: "", timezone: "UTC+07:00 Bangkok, Hanoi, Jakarta", siteId: "", bessCatalogId: "", ...draft.project });
+        if (draft.project) {
+          const defaultProject: ProjectInfo = {
+            name: "",
+            location: "",
+            industry: "",
+            voltageLevel: "",
+            timezone: "UTC+07:00 Bangkok, Hanoi, Jakarta",
+            siteId: "",
+            bessCatalogId: ""
+          };
+          setProject({ ...defaultProject, ...draft.project });
+        }
         if (draft.config) {
           const legacyDraft = draft.config.emsParityVersion !== defaultModelConfig.emsParityVersion;
           setConfig({
@@ -298,14 +310,25 @@ export function BessPlannerProjectWizard() {
       });
       createdProjectId = createdProject.id;
 
-      setSaveStage("Đang truyền dữ liệu tạm thời và chạy Oracle LP-PF...");
+      setSaveStage("Đang xử lý dữ liệu và tối ưu phương án BESS...");
       await analysesApi.createTransientSizingLab(
         createdProject.id,
         loadSourceFile,
         pvSourceFile
       );
+      if (source === "quick-sizing") {
+        const resultCode = window.localStorage.getItem("energyinsight.quickSizing.latestResultCode");
+        if (resultCode) {
+          await leadsApi.markQuickSizingConversion({
+            result_code: resultCode,
+            project_id: createdProject.id,
+            selected_candidate_id: selectedOptionId
+          }).catch(() => undefined);
+          window.localStorage.removeItem("energyinsight.quickSizing.latestResultCode");
+        }
+      }
       window.localStorage.removeItem(draftKey);
-      toast.success("Đã hoàn tất Sizing Lab. File đầu vào đã được xóa sau khi xử lý.");
+      toast.success("Đã hoàn tất phân tích. File đầu vào không được lưu trữ lâu dài trên hệ thống.");
       router.push(`/customer-portal/du-an-cua-toi/ket-qua?projectId=${createdProject.id}`);
     } catch (error) {
       const message = readWorkspaceApiError(error);
@@ -379,7 +402,7 @@ function UploadStep({ title, description, required, file, sourceFile, onFile, on
   };
   const onDrop = (event: DragEvent<HTMLDivElement>) => { event.preventDefault(); setDragging(false); void inspect(event.dataTransfer.files.item(0)); };
 
-  return <section><h2 className="text-xl font-bold text-brand-navy">{title} {required ? <span className="text-red-500">*</span> : null}</h2><p className="mt-2 text-sm font-medium text-brand-muted">{description}</p><div className={cn("mt-5 grid min-h-[220px] place-items-center rounded-xl border-2 border-dashed text-center", dragging ? "border-brand-blue bg-blue-50" : "border-blue-200 bg-slate-50/50")} onDragEnter={(event) => { event.preventDefault(); setDragging(true); }} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={onDrop}><div><CloudUpload className="mx-auto text-brand-blue" size={46} /><p className="mt-3 text-sm font-semibold text-brand-navy">Kéo thả CSV/XLSX vào đây</p><p className="mt-1 text-xs font-medium text-brand-muted">CSV sẽ được preview; XLSX chỉ kiểm tra tên và kích thước ở frontend.</p><input accept=".csv,.xlsx" className="hidden" ref={inputRef} type="file" onChange={(event) => void inspect(event.target.files?.item(0))} /><button className={buttonVariants({ className: "mt-4 h-10" })} disabled={reading} onClick={() => inputRef.current?.click()} type="button"><Upload size={17} />{reading ? "Đang kiểm tra..." : "Chọn file"}</button></div></div>{file ? <><FileResult file={file} onRemove={() => { onFile(null); onSourceFile(null); if (inputRef.current) inputRef.current.value = ""; }} />{!sourceFile ? <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">Trình duyệt không thể khôi phục file gốc từ bản nháp. Hãy chọn lại file trước khi tiếp tục.</div> : null}</> : <div className="mt-4 rounded-lg border border-dashed border-brand-line p-4 text-sm font-medium text-brand-muted">Chưa có file được chọn.</div>}</section>;
+  return <section><h2 className="text-xl font-bold text-brand-navy">{title} {required ? <span className="text-red-500">*</span> : null}</h2><p className="mt-2 text-sm font-medium text-brand-muted">{description}</p><div className={cn("mt-5 grid min-h-[220px] place-items-center rounded-xl border-2 border-dashed text-center", dragging ? "border-brand-blue bg-blue-50" : "border-blue-200 bg-slate-50/50")} onDragEnter={(event) => { event.preventDefault(); setDragging(true); }} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={onDrop}><div><CloudUpload className="mx-auto text-brand-blue" size={46} /><p className="mt-3 text-sm font-semibold text-brand-navy">Kéo thả CSV/XLSX vào đây</p><p className="mt-1 text-xs font-medium text-brand-muted">CSV sẽ được xem trước; XLSX được kiểm tra tên và kích thước trước khi xử lý đầy đủ.</p><input accept=".csv,.xlsx" className="hidden" ref={inputRef} type="file" onChange={(event) => void inspect(event.target.files?.item(0))} /><button className={buttonVariants({ className: "mt-4 h-10" })} disabled={reading} onClick={() => inputRef.current?.click()} type="button"><Upload size={17} />{reading ? "Đang kiểm tra..." : "Chọn file"}</button></div></div>{file ? <><FileResult file={file} onRemove={() => { onFile(null); onSourceFile(null); if (inputRef.current) inputRef.current.value = ""; }} />{!sourceFile ? <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">Trình duyệt không thể khôi phục file gốc từ bản nháp. Hãy chọn lại file trước khi tiếp tục.</div> : null}</> : <div className="mt-4 rounded-lg border border-dashed border-brand-line p-4 text-sm font-medium text-brand-muted">Chưa có file được chọn.</div>}</section>;
 }
 
 function FileResult({ file, onRemove }: { file: FileInspection; onRemove: () => void }) {
@@ -388,7 +411,7 @@ function FileResult({ file, onRemove }: { file: FileInspection; onRemove: () => 
 
 function QualityStep({ loadFile, pvFile }: { loadFile: FileInspection | null; pvFile: FileInspection | null }) {
   const files = [["Phụ tải", loadFile], ["Điện mặt trời", pvFile]] as const;
-  return <section><h2 className="text-xl font-bold text-brand-navy">4. Kiểm tra chất lượng dữ liệu</h2><p className="mt-2 text-sm font-medium text-brand-muted">Đây là kiểm tra sơ bộ trên trình duyệt. Backend sẽ đọc lại toàn bộ file, xác định interval, dòng lỗi và timestamp trùng khi tạo dự án.</p><div className="mt-5 grid gap-4">{files.map(([label, file]) => <Card className="rounded-xl p-4 shadow-none" key={label}><div className="flex items-center justify-between gap-3"><h3 className="flex items-center gap-2 font-bold text-brand-navy"><ShieldCheck className="text-brand-blue" size={20} />{label}</h3><StatusBadge file={file} /></div>{file ? <div className="mt-4 grid grid-cols-4 gap-3 max-md:grid-cols-2 max-sm:grid-cols-1"><QualityMetric label="Tên file" value={file.name} /><QualityMetric label="Số dòng" value={file.rowCount === null ? "Chưa xác định" : formatNumber(file.rowCount, 0)} /><QualityMetric label="Số cột" value={formatNumber(file.headers.length, 0)} /><QualityMetric label="Định dạng" value={file.extension.toUpperCase()} /></div> : <p className="mt-4 text-sm font-medium text-brand-muted">{label === "Điện mặt trời" ? "Không có file PV; bước này là tùy chọn." : "Chưa có file phụ tải."}</p>}{file?.messages.length ? <div className="mt-3 rounded-lg bg-slate-50 p-3 text-xs font-medium leading-5 text-brand-muted">{file.messages.map((message) => <p key={message}>• {message}</p>)}</div> : null}</Card>)}</div></section>;
+  return <section><h2 className="text-xl font-bold text-brand-navy">4. Kiểm tra chất lượng dữ liệu</h2><p className="mt-2 text-sm font-medium text-brand-muted">Đây là bước kiểm tra sơ bộ. Hệ thống sẽ tiếp tục kiểm tra cấu trúc thời gian, dữ liệu trùng và các dòng không hợp lệ trước khi phân tích.</p><div className="mt-5 grid gap-4">{files.map(([label, file]) => <Card className="rounded-xl p-4 shadow-none" key={label}><div className="flex items-center justify-between gap-3"><h3 className="flex items-center gap-2 font-bold text-brand-navy"><ShieldCheck className="text-brand-blue" size={20} />{label}</h3><StatusBadge file={file} /></div>{file ? <div className="mt-4 grid grid-cols-4 gap-3 max-md:grid-cols-2 max-sm:grid-cols-1"><QualityMetric label="Tên file" value={file.name} /><QualityMetric label="Số dòng" value={file.rowCount === null ? "Chưa xác định" : formatNumber(file.rowCount, 0)} /><QualityMetric label="Số cột" value={formatNumber(file.headers.length, 0)} /><QualityMetric label="Định dạng" value={file.extension.toUpperCase()} /></div> : <p className="mt-4 text-sm font-medium text-brand-muted">{label === "Điện mặt trời" ? "Không có file PV; bước này là tùy chọn." : "Chưa có file phụ tải."}</p>}{file?.messages.length ? <div className="mt-3 rounded-lg bg-slate-50 p-3 text-xs font-medium leading-5 text-brand-muted">{file.messages.map((message) => <p key={message}>• {message}</p>)}</div> : null}</Card>)}</div></section>;
 }
 
 function ModelConfigStep({ value, onChange }: { value: ModelConfig; onChange: (value: ModelConfig) => void }) {
@@ -399,7 +422,7 @@ function ModelConfigStep({ value, onChange }: { value: ModelConfig; onChange: (v
   return (
     <section>
       <h2 className="text-xl font-bold text-brand-navy">5. Cấu hình Sizing Lab</h2>
-      <p className="mt-2 text-sm font-medium text-brand-muted">Thiết lập phạm vi candidate, giới hạn BESS, biểu giá và giả định tài chính dùng cho phân tích.</p>
+      <p className="mt-2 text-sm font-medium text-brand-muted">Thiết lập phạm vi phương án, giới hạn BESS, biểu giá và giả định tài chính dùng cho phân tích.</p>
 
       <div className="mt-5 grid gap-4">
         <Card className="rounded-xl p-4 shadow-none">
@@ -441,7 +464,7 @@ function ModelConfigStep({ value, onChange }: { value: ModelConfig; onChange: (v
 }
 
 function ReviewStep({ project, loadFile, pvFile, config }: { project: ProjectInfo; loadFile: FileInspection | null; pvFile: FileInspection | null; config: ModelConfig }) {
-  return <section><h2 className="text-xl font-bold text-brand-navy">6. Xác nhận trước khi chạy</h2><p className="mt-2 text-sm font-medium text-brand-muted">Kiểm tra lại dữ liệu. Khi xác nhận, file chỉ được truyền tạm thời để chạy Sizing Lab và sẽ bị xóa ngay sau khi xử lý.</p><div className="mt-5 grid grid-cols-2 gap-4 max-lg:grid-cols-1"><ReviewCard title="Dự án" rows={[["Tên", project.name], ["Địa điểm", project.location], ["Ngành", project.industry], ["Điện áp", project.voltageLevel]]} /><ReviewCard title="Dữ liệu" rows={[["Phụ tải", loadFile?.name || "Chưa có"], ["Trạng thái", loadFile?.status || "Chưa kiểm tra"], ["PV", pvFile?.name || "Không sử dụng"]]} /><ReviewCard title="Cấu hình" rows={[["Mục tiêu", config.objective], ["Thời hạn", `${config.analysisYears} năm`], ["Sizing tham chiếu", `${formatNumber(config.powerKw, 0)} kW / ${formatNumber(config.energyKwh, 0)} kWh`], ["Biểu giá", config.billingMode === "2tc" ? "2TC — TOU + công suất" : "TOU-only"], ["Chọn phương án", "Pareto + SLSM"]]} /></div><div className="mt-5 flex gap-3 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm font-medium leading-6 text-brand-blue"><Info className="shrink-0" size={20} /><span>Backend chỉ lưu dự án, cấu hình và kết quả Sizing Lab. File Load/PV không được lưu vào storage hoặc MongoDB.</span></div></section>;
+  return <section><h2 className="text-xl font-bold text-brand-navy">6. Xác nhận trước khi chạy</h2><p className="mt-2 text-sm font-medium text-brand-muted">Kiểm tra lại dữ liệu trước khi chạy. File đầu vào chỉ được sử dụng trong quá trình phân tích và không được lưu trữ lâu dài trên hệ thống.</p><div className="mt-5 grid grid-cols-2 gap-4 max-lg:grid-cols-1"><ReviewCard title="Dự án" rows={[["Tên", project.name], ["Địa điểm", project.location], ["Ngành", project.industry], ["Điện áp", project.voltageLevel]]} /><ReviewCard title="Dữ liệu" rows={[["Phụ tải", loadFile?.name || "Chưa có"], ["Trạng thái", loadFile?.status || "Chưa kiểm tra"], ["PV", pvFile?.name || "Không sử dụng"]]} /><ReviewCard title="Cấu hình" rows={[["Mục tiêu", config.objective], ["Thời hạn", `${config.analysisYears} năm`], ["Sizing tham chiếu", `${formatNumber(config.powerKw, 0)} kW / ${formatNumber(config.energyKwh, 0)} kWh`], ["Biểu giá", config.billingMode === "2tc" ? "2TC — TOU + công suất" : "TOU-only"], ["Chọn phương án", "Pareto + SLSM"]]} /></div><div className="mt-5 flex gap-3 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm font-medium leading-6 text-brand-blue"><Info className="shrink-0" size={20} /><span>Hệ thống chỉ lưu thông tin dự án, cấu hình và kết quả phân tích. File phụ tải và điện mặt trời không được lưu trữ lâu dài.</span></div></section>;
 }
 
 function WizardSidebar({ currentStep, project, loadFile, config }: { currentStep: number; project: ProjectInfo; loadFile: FileInspection | null; config: ModelConfig }) {
@@ -457,7 +480,7 @@ async function inspectFile(file: File): Promise<FileInspection> {
   if (file.size > 50 * 1024 * 1024) {
     return { name: file.name, sizeLabel: formatFileSize(file.size), extension, rowCount: null, headers: [], preview: [], status: "invalid", messages: ["File vượt giới hạn upload 50 MB. Hãy chia nhỏ file trước khi tiếp tục."] };
   }
-  if (extension !== "csv") return { name: file.name, sizeLabel: formatFileSize(file.size), extension, rowCount: null, headers: [], preview: [], status: "warning", messages: [...messages, "Frontend chưa đọc nội dung Excel; file sẽ cần được kiểm tra đầy đủ khi tích hợp dịch vụ xử lý dữ liệu."] };
+  if (extension !== "csv") return { name: file.name, sizeLabel: formatFileSize(file.size), extension, rowCount: null, headers: [], preview: [], status: "warning", messages: [...messages, "Nội dung Excel sẽ được kiểm tra đầy đủ khi bắt đầu xử lý dữ liệu."] };
 
   const text = await file.text();
   const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0);
@@ -483,7 +506,7 @@ async function inspectFile(file: File): Promise<FileInspection> {
   const inconsistent = preview.some((row) => row.length !== headers.length);
   if (inconsistent) messages.push("Một số dòng preview có số cột không khớp header.");
   const invalid = inconsistent || headers.length < 2 || !hasTime || !hasValue;
-  return { name: file.name, sizeLabel: formatFileSize(file.size), extension, rowCount: lines.length - 1, headers, preview, status: invalid ? "invalid" : "valid", messages: messages.length > 0 ? messages : ["Cấu trúc CSV hợp lệ ở mức kiểm tra frontend."] };
+  return { name: file.name, sizeLabel: formatFileSize(file.size), extension, rowCount: lines.length - 1, headers, preview, status: invalid ? "invalid" : "valid", messages: messages.length > 0 ? messages : ["Cấu trúc CSV hợp lệ ở bước kiểm tra sơ bộ."] };
 }
 
 function normalizeDatasetHeader(value: string) {

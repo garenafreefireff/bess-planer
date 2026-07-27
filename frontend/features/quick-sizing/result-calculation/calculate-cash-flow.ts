@@ -2,7 +2,8 @@ import { calculateEnergyYears } from "./calculate-energy";
 import { allocateDispatchEnergy } from "./dispatch-energy";
 import { calculateSavings } from "./calculate-savings";
 import { calculateDepreciation, calculateOm, calculateTax } from "./calculate-tax";
-import { presentValue } from "./math";
+import { resolveCostOfEquityPct } from "./calculate-financial-metrics";
+import { normalizePercent, presentValue } from "./math";
 import type {
   CapexBreakdown,
   GeneratedCandidate,
@@ -44,12 +45,26 @@ export function calculateCashFlow(
   const energyYears = calculateEnergyYears(candidate, assumptions, scenario);
   const warnings: ResultWarning[] = [];
   const yearlyResults: YearlyResult[] = [];
+  const debtRatio = Math.min(Math.max(normalizePercent(assumptions.debtPct), 0), 1);
+  const debtAmountVnd = capex.totalCapexVnd * debtRatio;
+  const loanTenorYears = Math.max(Math.round(assumptions.loanTenorYears), 1);
+  const annualPrincipalVnd = debtAmountVnd / loanTenorYears;
+  const interestRate = Math.max(normalizePercent(assumptions.interestPct), 0);
+  const taxRate = Math.min(Math.max(normalizePercent(assumptions.taxPct), 0), 1);
+  const costOfEquityPct = resolveCostOfEquityPct({
+    ...assumptions,
+    waccPct: assumptions.waccPct + scenario.waccDeltaPct
+  });
   let cumulativeCashFlowVnd = 0;
+  let cumulativeEquityCashFlowVnd = 0;
+  let outstandingDebtVnd = debtAmountVnd;
 
   for (const energyYear of energyYears) {
     if (energyYear.year === 0) {
       const fcffVnd = -capex.totalCapexVnd;
+      const equityCashFlowVnd = fcffVnd + debtAmountVnd;
       cumulativeCashFlowVnd += fcffVnd;
+      cumulativeEquityCashFlowVnd += equityCashFlowVnd;
       yearlyResults.push({
         year: 0,
         availableCapacityKwh: energyYear.availableCapacityKwh,
@@ -83,6 +98,21 @@ export function calculateCashFlow(
         replacementVnd: 0,
         terminalValueVnd: 0,
         chargingCostVnd: 0,
+        debtDrawdownVnd: debtAmountVnd,
+        openingDebtVnd: 0,
+        scheduledPrincipalRepaymentVnd: 0,
+        balloonRepaymentVnd: 0,
+        principalRepaymentVnd: 0,
+        interestExpenseVnd: 0,
+        debtServiceVnd: 0,
+        closingDebtVnd: debtAmountVnd,
+        taxAfterInterestVnd: 0,
+        interestTaxShieldVnd: 0,
+        cfadsVnd: 0,
+        dscr: null,
+        equityCashFlowVnd,
+        cumulativeEquityCashFlowVnd,
+        discountedEquityCashFlowVnd: equityCashFlowVnd,
         fcffVnd,
         cumulativeCashFlowVnd,
         discountedCashFlowVnd: fcffVnd
@@ -100,7 +130,26 @@ export function calculateCashFlow(
     const replacementVnd = replacementValue(capex, config, scenario, energyYear.year);
     const terminalValueVnd = terminalValue(capex, config, energyYear.year, assumptions.analysisYears);
     const fcffVnd = savings.grossSavingVnd - omVnd - taxVnd - replacementVnd + terminalValueVnd;
+    const openingDebtVnd = outstandingDebtVnd;
+    const scheduledPrincipalRepaymentVnd = energyYear.year <= loanTenorYears
+      ? Math.min(annualPrincipalVnd, openingDebtVnd)
+      : 0;
+    const remainingAfterScheduledVnd = Math.max(openingDebtVnd - scheduledPrincipalRepaymentVnd, 0);
+    const balloonRepaymentVnd = energyYear.year === assumptions.analysisYears
+      ? remainingAfterScheduledVnd
+      : 0;
+    const principalRepaymentVnd = scheduledPrincipalRepaymentVnd + balloonRepaymentVnd;
+    const interestExpenseVnd = openingDebtVnd * interestRate;
+    const debtServiceVnd = principalRepaymentVnd + interestExpenseVnd;
+    const closingDebtVnd = Math.max(openingDebtVnd - principalRepaymentVnd, 0);
+    const taxAfterInterestVnd = Math.max(taxableIncomeVnd - interestExpenseVnd, 0) * taxRate;
+    const interestTaxShieldVnd = Math.max(taxVnd - taxAfterInterestVnd, 0);
+    const cfadsVnd = savings.grossSavingVnd - omVnd - taxAfterInterestVnd - replacementVnd;
+    const dscr = debtServiceVnd > 0 ? cfadsVnd / debtServiceVnd : null;
+    const equityCashFlowVnd = fcffVnd + interestTaxShieldVnd - interestExpenseVnd - principalRepaymentVnd;
+    outstandingDebtVnd = closingDebtVnd;
     cumulativeCashFlowVnd += fcffVnd;
+    cumulativeEquityCashFlowVnd += equityCashFlowVnd;
     const dischargedEnergyAcKwh = allocation.pvChargedEnergyKwh
       + allocation.peakShavingDischargeEnergyAnnualKwh
       + allocation.arbitrageDischargeEnergyKwh;
@@ -139,6 +188,21 @@ export function calculateCashFlow(
       replacementVnd,
       terminalValueVnd,
       chargingCostVnd: savings.chargingCostVnd,
+      debtDrawdownVnd: 0,
+      openingDebtVnd,
+      scheduledPrincipalRepaymentVnd,
+      balloonRepaymentVnd,
+      principalRepaymentVnd,
+      interestExpenseVnd,
+      debtServiceVnd,
+      closingDebtVnd,
+      taxAfterInterestVnd,
+      interestTaxShieldVnd,
+      cfadsVnd,
+      dscr,
+      equityCashFlowVnd,
+      cumulativeEquityCashFlowVnd,
+      discountedEquityCashFlowVnd: presentValue(equityCashFlowVnd, costOfEquityPct, energyYear.year),
       fcffVnd,
       cumulativeCashFlowVnd,
       discountedCashFlowVnd: presentValue(fcffVnd, assumptions.waccPct + scenario.waccDeltaPct, energyYear.year)

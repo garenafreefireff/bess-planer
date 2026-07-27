@@ -2,7 +2,7 @@ import { AxiosError } from "axios";
 
 import apiClient from "@/lib/api/client";
 
-export type LeadSource = "contact_form" | "quick_sizing" | "registration";
+export type LeadSource = "contact_form" | "quick_sizing" | "registration" | "bess_planner";
 export type LeadStatus = "new" | "contacted" | "qualified" | "proposal" | "converted" | "lost";
 
 export type LeadResponse = {
@@ -24,9 +24,14 @@ export type LeadResponse = {
   marketing_consent: boolean;
   training_consent: boolean;
   touch_count: number;
+  lead_score: number;
+  lead_grade: "cold" | "warm" | "hot";
+  score_reasons: string[];
   result_code: string | null;
   latest_quick_sizing_input: Record<string, unknown> | null;
   latest_quick_sizing_result: Record<string, unknown> | null;
+  planner_conversion_at: string | null;
+  planner_project_id: string | null;
   interactions: Array<Record<string, unknown>>;
   converted_at: string | null;
   created_at: string;
@@ -91,6 +96,15 @@ export const leadsApi = {
     return response.data;
   },
 
+  async markQuickSizingConversion(payload: {
+    result_code: string;
+    project_id: string;
+    selected_candidate_id?: string | null;
+  }): Promise<LeadResponse> {
+    const response = await apiClient.post<LeadResponse>("/leads/quick-sizing/conversion", payload);
+    return response.data;
+  },
+
   async listAdmin(params: {
     page?: number;
     page_size?: number;
@@ -98,7 +112,16 @@ export const leadsApi = {
     source?: LeadSource | "";
     search?: string;
   } = {}): Promise<LeadPageResponse> {
-    const response = await apiClient.get<LeadPageResponse>("/admin/leads", { params });
+    const requestParams = {
+      page: params.page,
+      page_size: params.page_size,
+      status: params.status || undefined,
+      source: params.source || undefined,
+      search: params.search?.trim() || undefined
+    };
+    const response = await apiClient.get<LeadPageResponse>("/admin/leads", {
+      params: requestParams
+    });
     return response.data;
   },
 

@@ -33,8 +33,13 @@ class LeadDocument(BaseDocument):
     marketing_consent: bool = False
     training_consent: bool = False
     touch_count: int = 1
+    lead_score: int = 0
+    lead_grade: str = "cold"
+    score_reasons: list[str] = Field(default_factory=list)
     result_code: str | None = None
     latest_quick_sizing_input: dict[str, Any] | None = None
     latest_quick_sizing_result: dict[str, Any] | None = None
+    planner_conversion_at: datetime | None = None
+    planner_project_id: str | None = None
     interactions: list[LeadInteraction] = Field(default_factory=list)
     converted_at: datetime | None = None

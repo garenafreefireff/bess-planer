@@ -269,6 +269,21 @@ export type YearlyResult = {
   replacementVnd: number;
   terminalValueVnd: number;
   chargingCostVnd: number;
+  debtDrawdownVnd: number;
+  openingDebtVnd: number;
+  scheduledPrincipalRepaymentVnd: number;
+  balloonRepaymentVnd: number;
+  principalRepaymentVnd: number;
+  interestExpenseVnd: number;
+  debtServiceVnd: number;
+  closingDebtVnd: number;
+  taxAfterInterestVnd: number;
+  interestTaxShieldVnd: number;
+  cfadsVnd: number;
+  dscr: number | null;
+  equityCashFlowVnd: number;
+  cumulativeEquityCashFlowVnd: number;
+  discountedEquityCashFlowVnd: number;
   fcffVnd: number;
   cumulativeCashFlowVnd: number;
   discountedCashFlowVnd: number;
@@ -306,6 +321,15 @@ export type SizingCandidateResult = {
   irrStatus: IrrStatus;
   paybackYears: number | null;
   paybackStatus: PaybackStatus;
+  debtAmountVnd: number;
+  equityInvestmentVnd: number;
+  costOfEquityPct: number;
+  totalInterestVnd: number;
+  minimumDscr: number | null;
+  averageDscr: number | null;
+  equityNpvVnd: number;
+  equityIrrPct: number | null;
+  equityPaybackYears: number | null;
   npvPerCapex: number;
   lcosVndPerKwh: number | null;
   budgetEvaluation: BudgetEvaluation;
@@ -318,6 +342,12 @@ export type SizingOptionResult = SizingCandidateResult & {
   title: string;
   badge: string;
   role: "low" | "recommended" | "high";
+};
+
+export type FinancingRecommendationResult = SizingCandidateResult & {
+  title: string;
+  badge: string;
+  role: "financing";
 };
 
 export type ParetoPoint = {
@@ -339,6 +369,10 @@ export type ScenarioMetricRanges = {
   npvVnd: MetricRange;
   irrPct: MetricRange;
   paybackYears: MetricRange;
+  equityNpvVnd: MetricRange;
+  equityIrrPct: MetricRange;
+  equityPaybackYears: MetricRange;
+  minimumDscr: MetricRange;
   netOperatingSavingYear1Vnd: MetricRange;
   capexVnd: MetricRange;
 };
@@ -366,6 +400,7 @@ export type QuickSizingResult = {
   paretoPoints: ParetoPoint[];
   lowCostOption: SizingOptionResult | null;
   recommendedOption: SizingOptionResult | null;
+  financingRecommendedOption: FinancingRecommendationResult | null;
   highBenefitOption: SizingOptionResult | null;
   scenarioRanges: ScenarioMetricRanges;
   confidence: ConfidenceResult;

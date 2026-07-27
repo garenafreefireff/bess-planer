@@ -53,11 +53,11 @@ class LoginRequest(BaseModel):
 
 
 class RefreshTokenRequest(BaseModel):
-    refresh_token: str = Field(min_length=20)
+    refresh_token: str | None = Field(default=None, min_length=20)
 
 
 class LogoutRequest(BaseModel):
-    refresh_token: str = Field(min_length=20)
+    refresh_token: str | None = Field(default=None, min_length=20)
 
 
 class AuthUserResponse(BaseModel):
@@ -67,6 +67,7 @@ class AuthUserResponse(BaseModel):
     representative_name: str
     phone: str | None = None
     industry: str | None = None
+    organization_id: str | None = None
     role: UserRole
     status: UserStatus
     preferences: UserPreferences

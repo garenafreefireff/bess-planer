@@ -83,6 +83,12 @@ class QuickSizingLeadCreateRequest(LeadCreateRequest):
         return self
 
 
+class LeadQuickSizingConversionRequest(BaseModel):
+    result_code: str = Field(min_length=6, max_length=40)
+    project_id: str = Field(pattern=r"^[a-fA-F0-9]{24}$")
+    selected_candidate_id: str | None = Field(default=None, max_length=160)
+
+
 class LeadAdminUpdateRequest(BaseModel):
     status: LeadStatus | None = None
     assigned_to: str | None = Field(default=None, max_length=120)
@@ -139,9 +145,14 @@ class LeadResponse(BaseModel):
     marketing_consent: bool
     training_consent: bool
     touch_count: int
+    lead_score: int
+    lead_grade: str
+    score_reasons: list[str]
     result_code: str | None = None
     latest_quick_sizing_input: dict[str, Any] | None = None
     latest_quick_sizing_result: dict[str, Any] | None = None
+    planner_conversion_at: datetime | None = None
+    planner_project_id: str | None = None
     interactions: list[LeadInteractionResponse] = Field(default_factory=list)
     converted_at: datetime | None = None
     created_at: datetime

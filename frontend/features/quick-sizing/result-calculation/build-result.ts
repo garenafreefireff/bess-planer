@@ -2,9 +2,24 @@ import { calculateBudgetEvaluation } from "./calculate-budget";
 import { calculateCapex } from "./calculate-capex";
 import { calculateCashFlow } from "./calculate-cash-flow";
 import { calculateConfidence } from "./calculate-confidence";
-import { calculateIrr, calculateLcos, calculateNpv, calculatePayback, financialWarnings } from "./calculate-financial-metrics";
+import {
+  calculateDebtSummary,
+  calculateEquityIrr,
+  calculateEquityNpv,
+  calculateEquityPayback,
+  calculateIrr,
+  calculateLcos,
+  calculateNpv,
+  calculatePayback,
+  financialWarnings,
+  resolveCostOfEquityPct
+} from "./calculate-financial-metrics";
 import { buildParetoPoints, markParetoCandidates } from "./calculate-pareto";
-import { scoreCandidates, selectRepresentativeOptions } from "./calculate-recommendation";
+import {
+  scoreCandidates,
+  selectFinancingRecommendation,
+  selectRepresentativeOptions
+} from "./calculate-recommendation";
 import { buildScenarioRanges } from "./calculate-scenarios";
 import { DEFAULT_RESULT_CALCULATION_CONFIG } from "./config";
 import { generateCandidates } from "./candidate-generator";
@@ -228,6 +243,31 @@ function buildTrace(
       configVersion: config.version
     },
     {
+      formulaId: "F17-FINANCING",
+      title: "Tài trợ vốn và dòng tiền vốn chủ",
+      formula: "Debt = CAPEX x DebtRatio; ScheduledPrincipal = Debt / Tenor; Balloon_T = remaining debt when Tenor > analysis horizon; Interest_y = OpeningDebt_y x InterestRate; FCFE_y = FCFF_y + TaxShield_y - Interest_y - Principal_y; DSCR_y = CFADS_y / DebtService_y",
+      inputs: {
+        debtPct: assumptions.debtPct,
+        interestPct: assumptions.interestPct,
+        loanTenorYears: assumptions.loanTenorYears,
+        taxPct: assumptions.taxPct,
+        waccPct: assumptions.waccPct
+      },
+      output: {
+        debtAmountVnd: selected?.debtAmountVnd ?? 0,
+        equityInvestmentVnd: selected?.equityInvestmentVnd ?? 0,
+        totalInterestVnd: selected?.totalInterestVnd ?? 0,
+        costOfEquityPct: selected?.costOfEquityPct ?? 0,
+        equityNpvVnd: selected?.equityNpvVnd ?? 0,
+        equityIrrPct: selected?.equityIrrPct ?? null,
+        equityPaybackYears: selected?.equityPaybackYears ?? null,
+        minimumDscr: selected?.minimumDscr ?? null
+      },
+      unit: "mixed",
+      source: "calculated",
+      configVersion: config.version
+    },
+    {
       formulaId: "F18",
       title: "NPV dự án",
       formula: "NPV = sum(FCFF_y / (1 + WACC)^y), y = 0..T",
@@ -264,6 +304,14 @@ function evaluateCandidate(
   const npvVnd = calculateNpv(yearlyResults, assumptions.waccPct + scenario.waccDeltaPct);
   const irrPct = calculateIrr(yearlyResults);
   const paybackYears = calculatePayback(yearlyResults);
+  const costOfEquityPct = resolveCostOfEquityPct({
+    ...assumptions,
+    waccPct: assumptions.waccPct + scenario.waccDeltaPct
+  });
+  const equityNpvVnd = calculateEquityNpv(yearlyResults, costOfEquityPct);
+  const equityIrrPct = calculateEquityIrr(yearlyResults);
+  const equityPaybackYears = calculateEquityPayback(yearlyResults);
+  const debtSummary = calculateDebtSummary(yearlyResults);
   const lcosVndPerKwh = calculateLcos(capex, yearlyResults, assumptions);
   const budgetEvaluation = calculateBudgetEvaluation(capex.totalCapexVnd, assumptions.budgetMax, config);
   const year1 = yearlyResults[1];
@@ -273,6 +321,20 @@ function evaluateCandidate(
     ...cashFlowWarnings,
     ...financialWarnings(candidate.id, irrPct, paybackYears)
   ];
+
+  if (debtSummary.minimumDscr !== null && debtSummary.minimumDscr < 1) {
+    warnings.push(createWarning("DSCR_BELOW_ONE", "DSCR thấp hơn 1,0x; dòng tiền dự án không đủ trả nợ tại ít nhất một năm.", { candidateId: candidate.id, severity: "warning" }));
+  }
+  if (debtSummary.debtAmountVnd > 0 && equityIrrPct === null) {
+    warnings.push(createWarning("EQUITY_IRR_NOT_AVAILABLE", "Equity IRR không có nghiệm hợp lệ cho dòng tiền vốn chủ.", { candidateId: candidate.id, severity: "info" }));
+  }
+  if (assumptions.debtPct > 0 && assumptions.debtPct < 100 && costOfEquityPct <= 0) {
+    warnings.push(createWarning("INCONSISTENT_COST_OF_CAPITAL", "WACC, lãi suất vay, thuế và tỷ lệ vốn vay đang suy ra chi phí vốn chủ không hợp lệ. Hãy kiểm tra lại bộ giả định tài chính.", { candidateId: candidate.id, severity: "warning" }));
+  }
+  const balloonRepaymentVnd = yearlyResults[yearlyResults.length - 1]?.balloonRepaymentVnd ?? 0;
+  if (balloonRepaymentVnd > 1) {
+    warnings.push(createWarning("BALLOON_REPAYMENT_AT_HORIZON", "Thời hạn vay dài hơn kỳ phân tích nên phần dư nợ còn lại được tất toán vào năm cuối.", { candidateId: candidate.id, severity: "warning" }));
+  }
 
   if (budgetEvaluation.status === "not_defined") {
     warnings.push(createWarning("BUDGET_NOT_DEFINED", "Chưa có ngân sách để so sánh candidate.", { candidateId: candidate.id, severity: "info" }));
@@ -305,6 +367,15 @@ function evaluateCandidate(
     irrStatus: irrPct === null ? "not_available" : "available",
     paybackYears,
     paybackStatus: paybackYears === null ? "beyond_analysis_horizon" : "within_horizon",
+    debtAmountVnd: debtSummary.debtAmountVnd,
+    equityInvestmentVnd: debtSummary.equityInvestmentVnd,
+    costOfEquityPct,
+    totalInterestVnd: debtSummary.totalInterestVnd,
+    minimumDscr: debtSummary.minimumDscr,
+    averageDscr: debtSummary.averageDscr,
+    equityNpvVnd,
+    equityIrrPct,
+    equityPaybackYears,
     npvPerCapex: capex.totalCapexVnd > 0 ? npvVnd / capex.totalCapexVnd : 0,
     lcosVndPerKwh,
     budgetEvaluation,
@@ -341,6 +412,7 @@ export function buildQuickSizingResult(
   const confidence = calculateConfidence(assumptions, basicInfo, globalWarnings, config);
   const scored = scoreCandidates(withPareto, assumptions, confidence, config, baseScenario);
   const options = selectRepresentativeOptions(scored);
+  const financingRecommendedOption = selectFinancingRecommendation(scored, assumptions);
   const recommendedId = options.recommendedOption?.id ?? null;
   const paretoPoints = buildParetoPoints(scored, recommendedId);
   const scenarioCandidate = generated.find((candidate) => candidate.id === recommendedId) ?? generated[0] ?? null;
@@ -355,6 +427,10 @@ export function buildQuickSizingResult(
       warning.severity === "error"
       || warning.code === "BUDGET_OVERRUN"
       || warning.code === "PEAK_TARGET_NOT_MET"
+      || warning.code === "DSCR_BELOW_ONE"
+      || warning.code === "BALLOON_REPAYMENT_AT_HORIZON"
+      || warning.code === "EQUITY_IRR_NOT_AVAILABLE"
+      || warning.code === "INCONSISTENT_COST_OF_CAPITAL"
     )))
   ];
 
@@ -365,6 +441,7 @@ export function buildQuickSizingResult(
     candidates: scored,
     paretoPoints,
     ...options,
+    financingRecommendedOption,
     scenarioRanges,
     confidence,
     warnings,

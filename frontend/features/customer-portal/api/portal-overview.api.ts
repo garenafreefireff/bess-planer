@@ -40,14 +40,13 @@ export type PortalOverviewData = {
 };
 
 export async function loadPortalOverview(): Promise<PortalOverviewData> {
-  const [projects, analyses, sites, tariffs, bessCatalog] =
-    await Promise.all([
-      loadAllPages((page, pageSize) => projectsApi.list({ page, page_size: pageSize })),
-      loadAllPages((page, pageSize) => analysesApi.list({ page, page_size: pageSize })),
-      loadAllPages((page, pageSize) => sitesApi.list({ page, page_size: pageSize })),
-      loadAllPages((page, pageSize) => tariffsApi.list({ page, page_size: pageSize })),
-      loadAllPages((page, pageSize) => bessCatalogApi.list({ page, page_size: pageSize }))
-    ]);
+  const [projects, analyses, sites, tariffs, bessCatalog] = await Promise.all([
+    loadAllPages((page, pageSize) => projectsApi.list({ page, page_size: pageSize })),
+    loadAllPages((page, pageSize) => analysesApi.list({ page, page_size: pageSize })),
+    loadAllPages((page, pageSize) => sitesApi.list({ page, page_size: pageSize })),
+    loadAllPages((page, pageSize) => tariffsApi.list({ page, page_size: pageSize })),
+    loadAllPages((page, pageSize) => bessCatalogApi.list({ page, page_size: pageSize }))
+  ]);
 
   return { projects, analyses, sites, tariffs, bessCatalog };
 }

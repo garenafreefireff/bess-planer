@@ -97,7 +97,7 @@ export function BackendResourcesContent() {
       setTariffs((items) => [created, ...items]);
       setTariffForm(initialTariff);
       setSiteForm((current) => ({ ...current, tariffId: current.tariffId || created.id }));
-      toast.success("Đã tạo biểu giá trên backend.");
+      toast.success("Đã tạo biểu giá.");
     } catch (createError) {
       toast.error(readWorkspaceApiError(createError));
     } finally {
@@ -108,7 +108,7 @@ export function BackendResourcesContent() {
   const createSite = async (event: FormEvent) => {
     event.preventDefault();
     if (!siteForm.tariffId) {
-      toast.error("Cần chọn biểu giá cho Site.");
+      toast.error("Cần chọn biểu giá cho địa điểm.");
       return;
     }
     setBusyKey("create-site");
@@ -125,7 +125,7 @@ export function BackendResourcesContent() {
       });
       setSites((items) => [created, ...items]);
       setSiteForm({ ...initialSite, tariffId: siteForm.tariffId });
-      toast.success("Đã tạo Site trên backend.");
+      toast.success("Đã tạo địa điểm dự án.");
     } catch (createError) {
       toast.error(readWorkspaceApiError(createError));
     } finally {
@@ -149,7 +149,7 @@ export function BackendResourcesContent() {
       });
       setCatalogs((items) => [created, ...items]);
       setCatalogForm(initialCatalog);
-      toast.success("Đã tạo BESS catalog trên backend.");
+      toast.success("Đã tạo cấu hình BESS.");
     } catch (createError) {
       toast.error(readWorkspaceApiError(createError));
     } finally {
@@ -185,7 +185,7 @@ export function BackendResourcesContent() {
     setBusyKey(key);
     try {
       await action();
-      toast.success("Đã cập nhật dữ liệu backend.");
+      toast.success("Đã cập nhật dữ liệu.");
     } catch (mutationError) {
       toast.error(readWorkspaceApiError(mutationError));
     } finally {
@@ -198,12 +198,12 @@ export function BackendResourcesContent() {
   const removeCatalog = (item: BessCatalogResponse) => removeResource(`catalog-${item.id}`, item.name, () => bessCatalogApi.remove(item.id), () => setCatalogs((rows) => rows.filter((row) => row.id !== item.id)));
 
   const removeResource = async (key: string, name: string, action: () => Promise<unknown>, onDone: () => void) => {
-    if (!window.confirm(`Xóa “${name}” khỏi backend?`)) return;
+    if (!window.confirm(`Xóa “${name}”?`)) return;
     setBusyKey(key);
     try {
       await action();
       onDone();
-      toast.success("Đã xóa dữ liệu backend.");
+      toast.success("Đã xóa dữ liệu.");
     } catch (removeError) {
       toast.error(readWorkspaceApiError(removeError));
     } finally {
@@ -215,13 +215,13 @@ export function BackendResourcesContent() {
     <main className="w-full pb-10 pt-7">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-[34px] font-bold text-brand-navy">Cấu hình hệ thống</h1>
-            <p className="mt-2 text-sm font-medium text-brand-muted">Quản lý Site, biểu giá và BESS catalog. File đầu vào không được lưu sau khi chạy phân tích.</p>
+            <h1 className="text-[34px] font-bold text-brand-navy">Tài nguyên dự án</h1>
+            <p className="mt-2 text-sm font-medium text-brand-muted">Quản lý địa điểm, biểu giá điện và các cấu hình BESS dùng chung cho dự án.</p>
           </div>
           <button className={buttonVariants({ variant: "secondary", className: "h-11" })} disabled={loading} onClick={() => void loadResources()} type="button"><RefreshCw className={cn(loading && "animate-spin")} size={18} />Làm mới</button>
         </div>
 
-        {error ? <Card className="mt-5 border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700 shadow-none">Không tải được dữ liệu backend: {error}</Card> : null}
+        {error ? <Card className="mt-5 border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700 shadow-none">Không thể tải dữ liệu: {error}</Card> : null}
         {loading ? <div className="grid min-h-[280px] place-items-center"><LoaderCircle className="animate-spin text-brand-blue" size={42} /></div> : (
           <div className="mt-5 grid gap-5">
             <ResourceSection icon={Zap} title="Biểu giá" count={tariffs.length} form={
@@ -238,33 +238,33 @@ export function BackendResourcesContent() {
               <ResourceTable rows={tariffs.map((item) => ({ id: item.id, name: item.name, detail: `${item.code} · ${item.voltage_level} · ${item.demand_charge_per_kw.toLocaleString("vi-VN")} VND/kW/tháng`, status: item.status, busy: busyKey === `tariff-${item.id}`, onToggle: () => void toggleTariff(item), onDelete: () => void removeTariff(item) }))} />
             </ResourceSection>
 
-            <ResourceSection icon={Database} title="Site" count={sites.length} form={
+            <ResourceSection icon={Database} title="Địa điểm dự án" count={sites.length} form={
               <form className="grid grid-cols-4 gap-3 max-xl:grid-cols-2 max-md:grid-cols-1" onSubmit={createSite}>
                 <SelectInput label="Biểu giá" value={siteForm.tariffId} options={tariffs.filter((item) => item.status === "active").map((item) => ({ label: item.name, value: item.id }))} onChange={(tariffId) => setSiteForm({ ...siteForm, tariffId })} />
-                <TextInput label="Mã Site" value={siteForm.code} onChange={(code) => setSiteForm({ ...siteForm, code })} />
-                <TextInput label="Tên Site" value={siteForm.name} onChange={(name) => setSiteForm({ ...siteForm, name })} />
+                <TextInput label="Mã địa điểm" value={siteForm.code} onChange={(code) => setSiteForm({ ...siteForm, code })} />
+                <TextInput label="Tên địa điểm" value={siteForm.name} onChange={(name) => setSiteForm({ ...siteForm, name })} />
                 <TextInput label="Địa điểm" value={siteForm.location} onChange={(location) => setSiteForm({ ...siteForm, location })} />
                 <SelectInput label="Cấp điện áp" value={siteForm.voltageLevel} options={["Hạ áp", "Trung áp", "Cao áp"]} onChange={(voltageLevel) => setSiteForm({ ...siteForm, voltageLevel })} />
                 <NumberInput label="Công suất hợp đồng (kW)" value={siteForm.contractCapacityKw} onChange={(contractCapacityKw) => setSiteForm({ ...siteForm, contractCapacityKw })} />
-                <SubmitButton busy={busyKey === "create-site"} label="Tạo Site" />
+                <SubmitButton busy={busyKey === "create-site"} label="Tạo địa điểm" />
               </form>
             }>
               <ResourceTable rows={sites.map((item) => ({ id: item.id, name: item.name, detail: `${item.code} · ${item.voltage_level} · ${item.contract_capacity_kw.toLocaleString("vi-VN")} kW`, status: item.status, busy: busyKey === `site-${item.id}`, onToggle: () => void toggleSite(item), onDelete: () => void removeSite(item) }))} />
             </ResourceSection>
 
-            <ResourceSection icon={BatteryCharging} title="BESS catalog" count={catalogs.length} form={
+            <ResourceSection icon={BatteryCharging} title="Danh mục cấu hình BESS" count={catalogs.length} form={
               <form className="grid grid-cols-4 gap-3 max-xl:grid-cols-2 max-md:grid-cols-1" onSubmit={createCatalog}>
-                <TextInput label="Mã catalog" value={catalogForm.code} onChange={(code) => setCatalogForm({ ...catalogForm, code })} />
-                <TextInput label="Tên catalog" value={catalogForm.name} onChange={(name) => setCatalogForm({ ...catalogForm, name })} />
+                <TextInput label="Mã cấu hình" value={catalogForm.code} onChange={(code) => setCatalogForm({ ...catalogForm, code })} />
+                <TextInput label="Tên cấu hình" value={catalogForm.name} onChange={(name) => setCatalogForm({ ...catalogForm, name })} />
                 <NumberInput label="Phiên bản" value={catalogForm.version} onChange={(version) => setCatalogForm({ ...catalogForm, version })} />
-                <SubmitButton busy={busyKey === "create-catalog"} label="Tạo catalog" />
+                <SubmitButton busy={busyKey === "create-catalog"} label="Tạo cấu hình" />
               </form>
             }>
               <ResourceTable rows={catalogs.map((item) => ({ id: item.id, name: item.name, detail: `${item.code} · version ${item.version}`, status: item.status, busy: busyKey === `catalog-${item.id}`, onToggle: () => void toggleCatalog(item), onDelete: () => void removeCatalog(item) }))} />
             </ResourceSection>
 
-            <ResourceSection icon={FileBarChart} title="Analysis runs" count={analyses.length}>
-              <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-sm"><thead className="bg-slate-50 text-left text-brand-muted"><tr><th className="px-4 py-3">Loại</th><th className="px-4 py-3">Trạng thái</th><th className="px-4 py-3">Tiến độ</th><th className="px-4 py-3">Engine</th><th className="px-4 py-3">Thời gian</th></tr></thead><tbody>{analyses.map((item) => <tr className="border-t border-brand-line" key={item.id ?? `${item.created_at}-${item.analysis_type}`}><td className="px-4 py-3 font-bold text-brand-navy">{item.analysis_type}</td><td className="px-4 py-3">{item.status}</td><td className="px-4 py-3">{item.progress_pct}%</td><td className="px-4 py-3">{item.engine_version}</td><td className="px-4 py-3">{new Date(item.created_at).toLocaleString("vi-VN")}</td></tr>)}</tbody></table></div>
+            <ResourceSection icon={FileBarChart} title="Lịch sử phân tích" count={analyses.length}>
+              <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-sm"><thead className="bg-slate-50 text-left text-brand-muted"><tr><th className="px-4 py-3">Loại</th><th className="px-4 py-3">Trạng thái</th><th className="px-4 py-3">Tiến độ</th><th className="px-4 py-3">Phiên bản tính toán</th><th className="px-4 py-3">Thời gian</th></tr></thead><tbody>{analyses.map((item) => <tr className="border-t border-brand-line" key={item.id ?? `${item.created_at}-${item.analysis_type}`}><td className="px-4 py-3 font-bold text-brand-navy">{item.analysis_type}</td><td className="px-4 py-3">{item.status}</td><td className="px-4 py-3">{item.progress_pct}%</td><td className="px-4 py-3">{item.engine_version}</td><td className="px-4 py-3">{new Date(item.created_at).toLocaleString("vi-VN")}</td></tr>)}</tbody></table></div>
             </ResourceSection>
           </div>
         )}

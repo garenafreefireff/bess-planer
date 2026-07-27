@@ -208,10 +208,10 @@ export function QuickSizingAssumptionFlow() {
           <details className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold leading-5 text-brand-navy">
             <summary className="cursor-pointer text-brand-blue">Xem dữ liệu tính toán</summary>
             <div className="mt-2 flex flex-wrap gap-2">
-              <span>Engine: {analysisRun.engine_version}</span>
+              <span>Phiên bản tính toán: {formatCalculationVersion(analysisRun.engine_version)}</span>
               <span>Nguồn công suất: {formatObjectiveLabel(dominantPowerObjective)}</span>
               <span>Nguồn dung lượng: {formatObjectiveLabel(dominantEnergyObjective)}</span>
-              <span>Tariff: {backendResult.tariff_assumptions.tariff_plan_code}</span>
+              <span>Nhóm biểu giá: {formatTariffPlanCode(backendResult.tariff_assumptions.tariff_plan_code)}</span>
               <span>Ngân sách: {formatBudgetStatus(backendResult.budget_evaluation.status)}</span>
             </div>
             {backendWarnings.length > 0 ? (
@@ -242,7 +242,7 @@ export function QuickSizingAssumptionFlow() {
       </Card>
 
       <div className="mt-5 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_390px] items-start gap-5 max-2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_360px] max-xl:grid-cols-1">
-        <FieldCard description="Các thông số kỹ thuật chính cập nhật realtime theo slider." icon={BatteryCharging} title="Cấu hình kỹ thuật">
+        <FieldCard description="Các thông số kỹ thuật chính được cập nhật tức thời khi điều chỉnh." icon={BatteryCharging} title="Cấu hình kỹ thuật">
           <FieldGrid fields={technicalFields} mode="slider" values={assumptions} onChange={updateNumericAssumption} />
         </FieldCard>
 
@@ -261,9 +261,17 @@ export function QuickSizingAssumptionFlow() {
         <aside className="sticky top-24 h-fit max-xl:static">
           <div className="grid max-h-[calc(100vh-120px)] gap-4 overflow-auto pr-1 max-xl:max-h-none max-xl:overflow-visible max-xl:pr-0">
             <Card className="overflow-hidden rounded-2xl border-0 bg-gradient-to-br from-brand-navy via-[#123f77] to-brand-blue p-5 text-white shadow-panel">
-              <div className="flex items-start justify-between gap-3"><span className="grid size-10 place-items-center rounded-xl bg-white/10"><Activity size={20} /></span><span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-blue-50">Cập nhật realtime</span></div>
+              <div className="flex items-start justify-between gap-3"><span className="grid size-10 place-items-center rounded-xl bg-white/10"><Activity size={20} /></span><span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-blue-50">Cập nhật tức thời</span></div>
               <h2 className="mt-5 text-xl font-bold">Cấu hình đang nhập</h2>
               <p className="mt-1 text-sm font-medium leading-6 text-blue-100">Theo dõi nhanh quy mô và khả năng đáp ứng của BESS.</p>
+            </Card>
+            <Card className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
+              <div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-blue-50 text-brand-blue"><Sparkles size={18} /></span><div><strong className="block text-sm text-brand-navy">Sẵn sàng xem kết quả</strong><span className="text-xs font-medium text-brand-muted">{dirtyFields.length > 0 ? `Đã chỉnh sửa ${dirtyFields.length} giả định` : "Đang dùng bộ đề xuất"}</span></div></div>
+              <div className="mt-4 grid gap-2">
+                <Link className={buttonVariants({ className: "h-11 w-full" })} href="/quick-sizing/ket-qua"><Zap size={18} />Tính kết quả<ArrowRight size={18} /></Link>
+                <button className={buttonVariants({ variant: "secondary", className: "h-10 w-full" })} onClick={resetAssumptions} type="button"><RotateCcw size={16} />Khôi phục đề xuất</button>
+                <Link className="text-center text-xs font-bold text-brand-muted hover:text-brand-blue" href="/quick-sizing"><ArrowLeft className="mr-1 inline" size={13} />Quay lại Bước 1</Link>
+              </div>
             </Card>
             <Summary title="Thông số chính">
               <SummaryRow label="Công suất" value={`${formatNumber(metrics.powerKw, 0)} kW`} />
@@ -273,7 +281,7 @@ export function QuickSizingAssumptionFlow() {
               {hasPeakShaving ? (
                 <>
                   <SummaryRow label="Cửa sổ cắt đỉnh" value={`${formatNumber(assumptions.peakEventDurationHours, 1)} giờ`} />
-                  <SummaryRow label="Coverage dự kiến" value={baseCandidatePreview?.technicalCoveragePct !== null && baseCandidatePreview?.technicalCoveragePct !== undefined ? formatPercent(baseCandidatePreview.technicalCoveragePct) : "Chưa tính"} />
+                  <SummaryRow label="Mức đáp ứng dự kiến" value={baseCandidatePreview?.technicalCoveragePct !== null && baseCandidatePreview?.technicalCoveragePct !== undefined ? formatPercent(baseCandidatePreview.technicalCoveragePct) : "Chưa tính"} />
                 </>
               ) : null}
             </Summary>
@@ -284,11 +292,19 @@ export function QuickSizingAssumptionFlow() {
               <SummaryRow label="Tổng CAPEX" value={formatVnd(capexPreview.totalCapexVnd)} />
             </Summary>
             <Summary title="Phương án tài chính tham khảo">
-              <SummaryRow label="Trạng thái" value={resultPreview.recommendedOption ? "Đạt tiêu chí tài chính" : "Chưa có khuyến nghị"} />
+              <SummaryRow label="Hiệu quả dự án" value={resultPreview.recommendedOption ? "Đạt tiêu chí dự án" : "Chưa đạt"} />
+              <SummaryRow label="Khả năng tài trợ" value={resultPreview.financingRecommendedOption ? "Đạt tiêu chí vốn chủ và trả nợ" : "Chưa đạt"} />
               <SummaryRow label="Tiết kiệm/năm" value={formatVnd(financialMetrics.annualSavingVnd)} />
-              <SummaryRow label="Payback" value={formatPayback(financialMetrics.paybackYears)} />
-              <SummaryRow label={`NPV ${assumptions.analysisYears} năm`} value={formatVnd(financialMetrics.npvVnd)} />
-              <SummaryRow label="IRR ước tính" value={formatPercent(financialMetrics.irrPct)} />
+              <SummaryRow label="Hoàn vốn dự án" value={formatPayback(financialMetrics.paybackYears)} />
+              <SummaryRow label={`NPV dự án ${assumptions.analysisYears} năm`} value={formatVnd(financialMetrics.npvVnd)} />
+              <SummaryRow label="IRR dự án" value={formatPercent(financialMetrics.irrPct)} />
+              <SummaryRow label="Khoản vay" value={formatVnd(financialMetrics.debtAmountVnd)} />
+              <SummaryRow label="Vốn chủ ban đầu" value={formatVnd(financialMetrics.equityInvestmentVnd)} />
+              <SummaryRow label="Tổng lãi vay" value={formatVnd(financialMetrics.totalInterestVnd)} />
+              <SummaryRow label="Hoàn vốn vốn chủ" value={formatPayback(financialMetrics.equityPaybackYears)} />
+              <SummaryRow label={`NPV vốn chủ ${assumptions.analysisYears} năm`} value={formatVnd(financialMetrics.equityNpvVnd)} />
+              <SummaryRow label="IRR vốn chủ" value={formatPercent(financialMetrics.equityIrrPct)} />
+              <SummaryRow label="DSCR thấp nhất" value={financialMetrics.minimumDscr === null ? "Không có dư nợ" : `${formatNumber(financialMetrics.minimumDscr, 2)}x`} />
               {financialPreviewOption && (financialPreviewOption.powerKw !== assumptions.powerKw || financialPreviewOption.energyKwh !== assumptions.energyKwh) ? (
                 <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs font-semibold leading-5 text-brand-muted">
                   Phương án tài chính tham khảo: {formatNumber(financialPreviewOption.powerKw, 0)} kW / {formatNumber(financialPreviewOption.energyKwh, 0)} kWh
@@ -301,14 +317,6 @@ export function QuickSizingAssumptionFlow() {
                 <SectionNotice messages={summaryWarnings} />
               </Card>
             ) : null}
-            <Card className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
-              <div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-blue-50 text-brand-blue"><Sparkles size={18} /></span><div><strong className="block text-sm text-brand-navy">Sẵn sàng xem kết quả</strong><span className="text-xs font-medium text-brand-muted">{dirtyFields.length > 0 ? `Đã chỉnh sửa ${dirtyFields.length} giả định` : "Đang dùng bộ đề xuất"}</span></div></div>
-              <div className="mt-4 grid gap-2">
-                <Link className={buttonVariants({ className: "h-11 w-full" })} href="/quick-sizing/ket-qua"><Zap size={18} />Tính kết quả<ArrowRight size={18} /></Link>
-                <button className={buttonVariants({ variant: "secondary", className: "h-10 w-full" })} onClick={resetAssumptions} type="button"><RotateCcw size={16} />Khôi phục đề xuất</button>
-                <Link className="text-center text-xs font-bold text-brand-muted hover:text-brand-blue" href="/quick-sizing"><ArrowLeft className="mr-1 inline" size={13} />Quay lại Bước 1</Link>
-              </div>
-            </Card>
           </div>
         </aside>
       </div>
@@ -323,6 +331,9 @@ export function QuickSizingAssumptionFlow() {
             <section>
               <h3 className="mb-3 text-sm font-bold text-brand-navy">Tài chính</h3>
               <FieldGrid fields={financeFields} mode="slider" values={assumptions} onChange={updateNumericAssumption} />
+              <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-semibold leading-5 text-brand-muted">
+                Khoản vay được giải ngân tại năm 0 và trả gốc đều hằng năm. Nếu thời hạn vay dài hơn kỳ phân tích, phần dư nợ còn lại được tất toán ở năm cuối.
+              </div>
               <div className="mt-3 grid grid-cols-2 gap-3 max-sm:grid-cols-1">
                 <label className="grid gap-1.5 text-sm font-semibold text-brand-navy">Thời hạn phân tích<select className="h-10 rounded-lg border border-brand-line bg-white px-3" value={assumptions.analysisYears} onChange={(event) => updateAssumption("analysisYears", Number(event.target.value))}><option value={5}>5 năm</option><option value={10}>10 năm</option><option value={15}>15 năm</option></select></label>
                 <label className="grid gap-1.5 text-sm font-semibold text-brand-navy">Tính VAT vào tổng CAPEX<select className="h-10 rounded-lg border border-brand-line bg-white px-3" value={assumptions.includeVatInCapex ? "yes" : "no"} onChange={(event) => updateAssumption("includeVatInCapex", event.target.value === "yes")}><option value="no">Không</option><option value="yes">Có</option></select></label>
@@ -442,7 +453,7 @@ function EquipmentCostScopePanel({ assumptions }: { assumptions: QuickSizingAssu
           </div>
         ))}
         <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs">
-          Catalog: {assumptions.costCatalogVersion} · Trạng thái: {formatCostModelStatus(assumptions.costModelStatus)} · {formatFriendlyCostSource(assumptions.costModelSourceName, assumptions.costModelSourceName)}
+          Bộ đơn giá: {assumptions.costCatalogVersion} · Trạng thái: {formatCostModelStatus(assumptions.costModelStatus)} · {formatFriendlyCostSource(assumptions.costModelSourceName, assumptions.costModelSourceName)}
         </div>
       </div>
     </details>
@@ -489,11 +500,11 @@ function DemandChargePanel({
           <CompactLine label="Trạng thái áp dụng" value={formatDemandApplicability(assumptions.demandChargeApplicability)} />
           <CompactLine label="Trạng thái chi tiết" value={formatDemandChargeStatus(assumptions.demandChargeStatus)} />
           <CompactLine label="Nguồn dữ liệu" value={formatDemandChargeSource(assumptions.demandChargeSource)} />
-          <CompactLine label="Voltage band" value={formatDemandVoltageBand(assumptions)} />
+          <CompactLine label="Dải điện áp" value={formatDemandVoltageBand(assumptions)} />
           <CompactLine label="Cộng vào NPV cơ sở" value={assumptions.demandSavingIncludedInBaseNpv ? "Có" : "Không"} />
           <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs">
-            Catalog: {assumptions.demandChargeCatalogVersion}
-            {assumptions.demandChargeReferenceVndPerKwMonth ? ` · Giá auto: ${formatVnd(assumptions.demandChargeReferenceVndPerKwMonth)}/kW/tháng` : ""}
+            Bộ tham chiếu: {assumptions.demandChargeCatalogVersion}
+            {assumptions.demandChargeReferenceVndPerKwMonth ? ` · Giá tham chiếu: ${formatVnd(assumptions.demandChargeReferenceVndPerKwMonth)}/kW/tháng` : ""}
           </div>
         </div>
       </details>
@@ -561,7 +572,7 @@ function EpcRateSlider({
             <strong className="text-brand-navy">Phạm vi EPC:</strong> {assumptions.epcScopeItems.join(", ")}
           </div>
           <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs">
-            Catalog: {assumptions.costCatalogVersion} · Trạng thái: {formatCostModelStatus(assumptions.costModelStatus)} · {formatFriendlyCostSource(assumptions.costModelSourceName, assumptions.costModelSourceName)}
+            Bộ đơn giá: {assumptions.costCatalogVersion} · Trạng thái: {formatCostModelStatus(assumptions.costModelStatus)} · {formatFriendlyCostSource(assumptions.costModelSourceName, assumptions.costModelSourceName)}
           </div>
         </div>
       </details>
@@ -589,7 +600,7 @@ function formatFriendlyCostSource(source: string, costModelSourceName: string) {
   if (source === "frontend_fallback" || costModelSourceName === "frontend_fallback") {
     return "Nguồn: Dữ liệu dự phòng";
   }
-  return "Nguồn: Catalog sơ bộ";
+  return "Nguồn: Bộ đơn giá sơ bộ";
 }
 
 function formatCostModelStatus(status: string) {
@@ -910,6 +921,42 @@ function formatObjectiveLabel(objective?: string | null) {
   };
 
   return objective ? objectiveLabels[objective] ?? objective : "Chưa xác định";
+}
+
+function formatCalculationVersion(version?: string | null) {
+  const labels: Record<string, string> = {
+    "quick-sizing-step2-formulas-v1": "Quick Sizing Step 2 formulas v1"
+  };
+
+  return version ? labels[version] ?? version : "Chưa xác định";
+}
+
+function formatTariffPlanCode(code?: string | null) {
+  if (!code) {
+    return "Chưa xác định";
+  }
+
+  const [customerGroup, voltageLevel] = code.split(":");
+  const customerGroupLabels: Record<string, string> = {
+    industrial: "Công nghiệp",
+    commercial: "Thương mại",
+    residential: "Sinh hoạt",
+    other: "Khác"
+  };
+  const voltageLevelLabels: Record<string, string> = {
+    "Hạ áp": "Hạ áp",
+    "Trung áp": "Trung áp",
+    "Cao áp": "Cao áp",
+    low_voltage: "Hạ áp",
+    medium_voltage: "Trung áp",
+    high_voltage: "Cao áp"
+  };
+
+  if (!voltageLevel) {
+    return customerGroupLabels[customerGroup] ?? code;
+  }
+
+  return `${customerGroupLabels[customerGroup] ?? customerGroup}: ${voltageLevelLabels[voltageLevel] ?? voltageLevel}`;
 }
 
 function formatBudgetStatus(status: string) {

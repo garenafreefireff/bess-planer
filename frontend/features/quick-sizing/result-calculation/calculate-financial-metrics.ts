@@ -1,4 +1,4 @@
-import { presentValue } from "./math";
+import { normalizePercent, presentValue } from "./math";
 import { createWarning } from "./validation";
 import type {
   CapexBreakdown,
@@ -15,8 +15,7 @@ export function calculateNpv(yearlyResults: YearlyResult[], waccPct: number) {
   return yearlyResults.reduce((sum, row) => sum + presentValue(row.fcffVnd, waccPct, row.year), 0);
 }
 
-export function calculateIrr(yearlyResults: YearlyResult[]) {
-  const cashFlows = yearlyResults.map((row) => row.fcffVnd);
+function calculateIrrFromCashFlows(cashFlows: number[]) {
   const hasPositive = cashFlows.some((value) => value > 0);
   const hasNegative = cashFlows.some((value) => value < 0);
   if (!hasPositive || !hasNegative) {
@@ -56,6 +55,10 @@ export function calculateIrr(yearlyResults: YearlyResult[]) {
   return ((low + high) / 2) * 100;
 }
 
+export function calculateIrr(yearlyResults: YearlyResult[]) {
+  return calculateIrrFromCashFlows(yearlyResults.map((row) => row.fcffVnd));
+}
+
 export function calculatePayback(yearlyResults: YearlyResult[]) {
   for (let index = 1; index < yearlyResults.length; index += 1) {
     const previous = yearlyResults[index - 1];
@@ -72,6 +75,66 @@ export function calculatePayback(yearlyResults: YearlyResult[]) {
   }
 
   return null;
+}
+
+export function resolveCostOfEquityPct(assumptions: Step2Assumptions) {
+  const debtWeight = Math.min(Math.max(normalizePercent(assumptions.debtPct), 0), 1);
+  const equityWeight = 1 - debtWeight;
+  const wacc = normalizePercent(assumptions.waccPct);
+  const afterTaxDebtCost = normalizePercent(assumptions.interestPct) * (1 - normalizePercent(assumptions.taxPct));
+  if (equityWeight <= 0.0001) {
+    return Math.max(assumptions.waccPct, 0);
+  }
+  return Math.max(((wacc - debtWeight * afterTaxDebtCost) / equityWeight) * 100, 0);
+}
+
+export function calculateEquityNpv(yearlyResults: YearlyResult[], costOfEquityPct: number) {
+  return yearlyResults.reduce(
+    (sum, row) => sum + presentValue(row.equityCashFlowVnd, costOfEquityPct, row.year),
+    0
+  );
+}
+
+export function calculateEquityIrr(yearlyResults: YearlyResult[]) {
+  return calculateIrrFromCashFlows(yearlyResults.map((row) => row.equityCashFlowVnd));
+}
+
+export function calculateEquityPayback(yearlyResults: YearlyResult[]) {
+  for (let index = 1; index < yearlyResults.length; index += 1) {
+    const previous = yearlyResults[index - 1];
+    const current = yearlyResults[index];
+    if (!previous || !current) {
+      continue;
+    }
+    if (
+      previous.cumulativeEquityCashFlowVnd < 0
+      && current.cumulativeEquityCashFlowVnd >= 0
+      && current.equityCashFlowVnd > 0
+    ) {
+      const paybackYears = (current.year - 1)
+        + Math.abs(previous.cumulativeEquityCashFlowVnd) / current.equityCashFlowVnd;
+      return Number.isFinite(paybackYears) && paybackYears >= 0 && paybackYears <= current.year
+        ? paybackYears
+        : null;
+    }
+  }
+  return null;
+}
+
+export function calculateDebtSummary(yearlyResults: YearlyResult[]) {
+  const debtYears = yearlyResults.filter((row) => row.debtServiceVnd > 0);
+  const dscrValues = debtYears
+    .map((row) => row.dscr)
+    .filter((value): value is number => value !== null && Number.isFinite(value));
+  return {
+    debtAmountVnd: yearlyResults[0]?.debtDrawdownVnd ?? 0,
+    equityInvestmentVnd: Math.abs(yearlyResults[0]?.equityCashFlowVnd ?? 0),
+    totalInterestVnd: yearlyResults.reduce((sum, row) => sum + row.interestExpenseVnd, 0),
+    minimumDscr: dscrValues.length > 0 ? Math.min(...dscrValues) : null,
+    averageDscr: dscrValues.length > 0
+      ? dscrValues.reduce((sum, value) => sum + value, 0) / dscrValues.length
+      : null
+  };
 }
 
 export function calculateLcos(capex: CapexBreakdown, yearlyResults: YearlyResult[], assumptions: Step2Assumptions) {

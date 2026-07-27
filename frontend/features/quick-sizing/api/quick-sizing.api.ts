@@ -25,5 +25,5 @@ export function readQuickSizingApiError(error: unknown): string {
     }
   }
 
-  return "Không thể tạo giả định Quick Sizing từ backend. Vui lòng thử lại.";
+  return "Không thể tạo bộ giả định Quick Sizing. Vui lòng thử lại.";
 }

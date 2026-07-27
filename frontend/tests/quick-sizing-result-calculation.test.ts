@@ -828,6 +828,40 @@ test("cash flow year zero is negative CAPEX", () => {
   assert.equal(cashFlow.yearlyResults[0]?.cumulativeCashFlowVnd, -capex.totalCapexVnd);
 });
 
+test("loan schedule uses equal principal and declining interest", () => {
+  const assumptions = { ...baseAssumptions, debtPct: 70, interestPct: 9, loanTenorYears: 7 };
+  const { capex } = calculateCapex(candidate, assumptions, DEFAULT_RESULT_CALCULATION_CONFIG, DEFAULT_RESULT_CALCULATION_CONFIG.scenarios[1]);
+  const { yearlyResults } = calculateCashFlow(candidate, capex, assumptions, DEFAULT_RESULT_CALCULATION_CONFIG, DEFAULT_RESULT_CALCULATION_CONFIG.scenarios[1]);
+  const year0 = yearlyResults[0];
+  const year1 = yearlyResults[1];
+  const year2 = yearlyResults[2];
+  assert.ok(year0 && year1 && year2);
+
+  const expectedDebt = capex.totalCapexVnd * 0.7;
+  assert.equal(Math.round(year0.debtDrawdownVnd), Math.round(expectedDebt));
+  assert.equal(Math.round(year0.equityCashFlowVnd), Math.round(-(capex.totalCapexVnd - expectedDebt)));
+  assert.equal(Math.round(year1.principalRepaymentVnd), Math.round(expectedDebt / 7));
+  assert.equal(Math.round(year1.interestExpenseVnd), Math.round(expectedDebt * 0.09));
+  assert.ok(year2.interestExpenseVnd < year1.interestExpenseVnd);
+  assert.equal(Math.round(year1.closingDebtVnd), Math.round(year1.openingDebtVnd - year1.principalRepaymentVnd));
+  assert.equal(year1.dscr, year1.cfadsVnd / year1.debtServiceVnd);
+});
+
+test("loan longer than analysis horizon is settled with balloon repayment", () => {
+  const assumptions = { ...baseAssumptions, analysisYears: 5, loanTenorYears: 10 };
+  const { capex } = calculateCapex(candidate, assumptions, DEFAULT_RESULT_CALCULATION_CONFIG, DEFAULT_RESULT_CALCULATION_CONFIG.scenarios[1]);
+  const { yearlyResults } = calculateCashFlow(candidate, capex, assumptions, DEFAULT_RESULT_CALCULATION_CONFIG, DEFAULT_RESULT_CALCULATION_CONFIG.scenarios[1]);
+  const finalYear = yearlyResults[5];
+  assert.ok(finalYear);
+
+  assert.ok(finalYear.balloonRepaymentVnd > 0);
+  assert.equal(Math.round(finalYear.closingDebtVnd), 0);
+  assert.equal(
+    Math.round(finalYear.principalRepaymentVnd),
+    Math.round(finalYear.scheduledPrincipalRepaymentVnd + finalYear.balloonRepaymentVnd)
+  );
+});
+
 test("replacement is applied on configured replacement year", () => {
   const config: ResultCalculationConfig = {
     ...DEFAULT_RESULT_CALCULATION_CONFIG,
@@ -887,12 +921,58 @@ test("IRR returns a valid positive value when cash flow has a positive root", ()
   assert.ok((calculateIrr(rows) ?? 0) > 0);
 });
 
-test("debt parameters do not change project NPV or IRR", () => {
-  const lowDebt = buildQuickSizingResult({ ...baseAssumptions, debtPct: 0, interestPct: 1 });
-  const highDebt = buildQuickSizingResult({ ...baseAssumptions, debtPct: 90, interestPct: 20 });
+test("debt parameters preserve project metrics but change equity metrics", () => {
+  const lowDebt = buildQuickSizingResult({ ...baseAssumptions, debtPct: 0, interestPct: 1, loanTenorYears: 5 });
+  const highDebt = buildQuickSizingResult({ ...baseAssumptions, debtPct: 90, interestPct: 20, loanTenorYears: 10 });
+  const lowCandidate = lowDebt.recommendedOption ?? lowDebt.candidates[0];
+  const highCandidate = highDebt.recommendedOption ?? highDebt.candidates[0];
+  assert.ok(lowCandidate);
+  assert.ok(highCandidate);
 
-  assert.equal(Math.round(lowDebt.recommendedOption?.npvVnd ?? 0), Math.round(highDebt.recommendedOption?.npvVnd ?? 0));
-  assert.equal(Math.round(lowDebt.recommendedOption?.irrPct ?? 0), Math.round(highDebt.recommendedOption?.irrPct ?? 0));
+  assert.equal(Math.round(lowCandidate.npvVnd), Math.round(highCandidate.npvVnd));
+  assert.equal(Math.round(lowCandidate.irrPct ?? 0), Math.round(highCandidate.irrPct ?? 0));
+  assert.notEqual(Math.round(lowCandidate.equityNpvVnd), Math.round(highCandidate.equityNpvVnd));
+  assert.notEqual(Math.round(lowCandidate.equityIrrPct ?? 0), Math.round(highCandidate.equityIrrPct ?? 0));
+  assert.equal(lowCandidate.debtAmountVnd, 0);
+  assert.ok(highCandidate.debtAmountVnd > 0);
+  assert.ok(highCandidate.totalInterestVnd > 0);
+  assert.notEqual(highCandidate.minimumDscr, null);
+});
+
+test("debt ratio changes debt drawdown and initial equity", () => {
+  const low = buildQuickSizingResult({ ...baseAssumptions, debtPct: 20 });
+  const high = buildQuickSizingResult({ ...baseAssumptions, debtPct: 80 });
+  const lowCandidate = low.recommendedOption ?? low.candidates[0];
+  const highCandidate = high.recommendedOption ?? high.candidates[0];
+  assert.ok(lowCandidate && highCandidate);
+
+  assert.ok(highCandidate.debtAmountVnd > lowCandidate.debtAmountVnd);
+  assert.ok(highCandidate.equityInvestmentVnd < lowCandidate.equityInvestmentVnd);
+});
+
+test("interest rate changes total interest and equity value", () => {
+  const low = buildQuickSizingResult({ ...baseAssumptions, interestPct: 5 });
+  const high = buildQuickSizingResult({ ...baseAssumptions, interestPct: 15 });
+  const lowCandidate = low.recommendedOption ?? low.candidates[0];
+  const highCandidate = high.recommendedOption ?? high.candidates[0];
+  assert.ok(lowCandidate && highCandidate);
+
+  assert.ok(highCandidate.totalInterestVnd > lowCandidate.totalInterestVnd);
+  assert.notEqual(Math.round(highCandidate.equityNpvVnd), Math.round(lowCandidate.equityNpvVnd));
+});
+
+test("loan tenor changes annual principal and DSCR", () => {
+  const short = buildQuickSizingResult({ ...baseAssumptions, loanTenorYears: 5 });
+  const long = buildQuickSizingResult({ ...baseAssumptions, loanTenorYears: 10 });
+  const shortCandidate = short.recommendedOption ?? short.candidates[0];
+  const longCandidate = long.recommendedOption ?? long.candidates[0];
+  assert.ok(shortCandidate && longCandidate);
+  const shortYear1 = shortCandidate.yearlyResults[1];
+  const longYear1 = longCandidate.yearlyResults[1];
+  assert.ok(shortYear1 && longYear1);
+
+  assert.ok(shortYear1.principalRepaymentVnd > longYear1.principalRepaymentVnd);
+  assert.notEqual(shortCandidate.minimumDscr, longCandidate.minimumDscr);
 });
 
 test("IRR returns null when cash flow has no sign change", () => {
@@ -1513,6 +1593,7 @@ test("output contract contains candidates, pareto, options, warnings and trace",
   assert.ok(result.highBenefitOption);
   assert.ok(result.calculationTrace.some((trace) => trace.formulaId === "F18"));
   assert.ok(result.calculationTrace.some((trace) => trace.formulaId === "F16-DEMAND"));
+  assert.ok(result.calculationTrace.some((trace) => trace.formulaId === "F17-FINANCING"));
 });
 
 function emptyYear(year: number): YearlyResult {
@@ -1549,6 +1630,21 @@ function emptyYear(year: number): YearlyResult {
     replacementVnd: 0,
     terminalValueVnd: 0,
     chargingCostVnd: 0,
+    debtDrawdownVnd: 0,
+    openingDebtVnd: 0,
+    scheduledPrincipalRepaymentVnd: 0,
+    balloonRepaymentVnd: 0,
+    principalRepaymentVnd: 0,
+    interestExpenseVnd: 0,
+    debtServiceVnd: 0,
+    closingDebtVnd: 0,
+    taxAfterInterestVnd: 0,
+    interestTaxShieldVnd: 0,
+    cfadsVnd: 0,
+    dscr: null,
+    equityCashFlowVnd: 0,
+    cumulativeEquityCashFlowVnd: 0,
+    discountedEquityCashFlowVnd: 0,
     fcffVnd: 0,
     cumulativeCashFlowVnd: 0,
     discountedCashFlowVnd: 0

@@ -25,6 +25,7 @@ from app.modules.auth.schemas import (
 )
 from app.modules.leads.service import LeadService
 from app.modules.users.enums import UserStatus
+from app.modules.users.service import UserService
 
 logger = logging.getLogger(__name__)
 
@@ -41,10 +42,12 @@ class AuthService:
         auth_repository: AuthRepository,
         settings: Settings,
         lead_service: LeadService,
+        user_service: UserService,
     ) -> None:
         self.auth_repository = auth_repository
         self.settings = settings
         self.lead_service = lead_service
+        self.user_service = user_service
 
     async def register(
         self,
@@ -63,6 +66,10 @@ class AuthService:
             industry=payload.industry,
         )
         created_user = await self.auth_repository.create_user(user)
+        try:
+            created_user = await self.user_service.ensure_registration_organization(user=created_user)
+        except Exception:
+            logger.exception("Could not create organization for registered user.")
         try:
             await self.lead_service.capture_registration(
                 user_id=created_user.id or "",
@@ -189,6 +196,7 @@ class AuthService:
             representative_name=user.representative_name,
             phone=user.phone,
             industry=user.industry,
+            organization_id=user.organization_id,
             role=user.role,
             status=user.status,
             preferences=user.preferences,

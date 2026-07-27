@@ -169,9 +169,9 @@ export const DEFAULT_DEMAND_CHARGE_CATALOG = {
 };
 
 export const DEFAULT_RESULT_CALCULATION_CONFIG: ResultCalculationConfig = {
-  version: "quick-sizing-step3-result-engine-v1",
-  effectiveDate: "2026-07-22",
-  description: "Quick Sizing Step 2 to Step 3 result engine based on formulas F1-F28.",
+  version: "quick-sizing-step3-result-engine-v2-financing",
+  effectiveDate: "2026-07-26",
+  description: "Quick Sizing result engine with project FCFF, debt schedule, FCFE, equity metrics and DSCR.",
   candidate: {
     version: "candidate-grid-v2",
     powerMultipliers: [0.5, 0.75, 1, 1.25, 1.5],

@@ -1,5 +1,5 @@
-import { AdminProjectsPage } from "@/features/admin/components/admin-pages";
+import { AdminProjectsApiPage } from "@/features/admin/components/admin-projects-api-page";
 
 export default function AdminProjectsRoute() {
-  return <AdminProjectsPage />;
+  return <AdminProjectsApiPage />;
 }

@@ -1,6 +1,8 @@
 import asyncio
+from collections.abc import Callable
 from contextlib import ExitStack
 from pathlib import Path
+from typing import Any
 
 from fastapi import UploadFile
 
@@ -24,6 +26,37 @@ from app.modules.datasets.repository import DatasetRepository
 from app.modules.files.repository import FileRepository
 from app.modules.projects.repository import ProjectRepository
 from app.shared.schemas.pagination import PageMeta, PageResponse
+
+
+_ANALYSIS_SEMAPHORES: dict[int, asyncio.Semaphore] = {}
+
+
+def _analysis_semaphore(limit: int) -> asyncio.Semaphore:
+    normalized = max(1, int(limit))
+    semaphore = _ANALYSIS_SEMAPHORES.get(normalized)
+    if semaphore is None:
+        semaphore = asyncio.Semaphore(normalized)
+        _ANALYSIS_SEMAPHORES[normalized] = semaphore
+    return semaphore
+
+
+async def _run_analysis_thread(
+    settings: Settings,
+    function: Callable[..., dict[str, Any]],
+    *args: Any,
+) -> dict[str, Any]:
+    semaphore = _analysis_semaphore(settings.analysis_max_concurrency)
+    async with semaphore:
+        try:
+            return await asyncio.wait_for(
+                asyncio.to_thread(function, *args),
+                timeout=max(1, settings.analysis_timeout_seconds),
+            )
+        except TimeoutError as exc:
+            raise AppError(
+                "Phân tích vượt thời gian xử lý cho phép. Vui lòng giảm kích thước dữ liệu hoặc thử lại sau.",
+                code="analysis_timeout",
+            ) from exc
 
 
 def _run_optimizer_with_materialized_files(
@@ -221,7 +254,8 @@ class AnalysisService:
             )
 
         started_at = utc_now()
-        result = await asyncio.to_thread(
+        result = await _run_analysis_thread(
+            self.settings,
             _run_optimizer_with_materialized_files,
             self.storage_client,
             self.bess_planner_optimizer,
@@ -287,7 +321,8 @@ class AnalysisService:
             )
 
         started_at = utc_now()
-        result = await asyncio.to_thread(
+        result = await _run_analysis_thread(
+            self.settings,
             _run_optimizer_with_transient_uploads,
             self.bess_planner_optimizer,
             project.configuration,

@@ -17,6 +17,13 @@ export function assumptionsFromAnalysisRun(run: QuickSizingAnalysisRun): QuickSi
 
 export function assumptionsFromStep2Result(result: QuickSizingStep2Result): QuickSizingAssumptions {
   const technical = result.technical_assumptions;
+  const budgetOption = result.budget_evaluation.budget_option;
+  const effectiveSizing = result.budget_evaluation.status === "over_budget"
+    && budgetOption?.feasible
+    && budgetOption.power_kw > 0
+    && budgetOption.energy_kwh > 0
+    ? budgetOption
+    : result.budget_evaluation.technical_option;
   const cost = result.cost_assumptions;
   const tariff = result.tariff_assumptions;
   const finance = result.financial_assumptions;
@@ -34,8 +41,8 @@ export function assumptionsFromStep2Result(result: QuickSizingStep2Result): Quic
 
   const mapped: QuickSizingAssumptions = {
     ...defaultQuickSizingAssumptions,
-    energyKwh: technical.energy_kwh,
-    powerKw: technical.power_kw,
+    energyKwh: effectiveSizing.energy_kwh,
+    powerKw: effectiveSizing.power_kw,
     dodPct: technical.dod_pct,
     rtePct: technical.rte_pct,
     degradationPct: technical.degradation_pct,

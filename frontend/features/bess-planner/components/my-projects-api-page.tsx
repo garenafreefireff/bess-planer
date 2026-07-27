@@ -129,7 +129,7 @@ export function MyProjectsApiPage() {
       return;
     }
 
-    if (!window.confirm(`Xóa dự án “${project.name}” khỏi backend?`)) return;
+    if (!window.confirm(`Xóa dự án “${project.name}”?`)) return;
     setActionId(project.id);
     try {
       await projectsApi.remove(project.id);
@@ -149,7 +149,7 @@ export function MyProjectsApiPage() {
         <div>
           <h1 className="text-[34px] font-bold text-brand-navy">Dự án của tôi</h1>
           <p className="mt-2 text-sm font-medium text-brand-muted">
-            Dữ liệu dự án được đọc trực tiếp từ API `/projects`; bản nháp chưa gửi backend vẫn được hiển thị riêng.
+            Theo dõi các dự án đã lưu và tiếp tục làm việc với những bản nháp còn dang dở.
           </p>
         </div>
         <div className="flex gap-2">
@@ -170,7 +170,7 @@ export function MyProjectsApiPage() {
       </div>
 
       <div className="mt-5 grid grid-cols-3 gap-4 max-lg:grid-cols-1">
-        <MetricCard label="Tổng dự án backend" value={String(total)} icon={FolderOpen} />
+        <MetricCard label="Tổng dự án đã lưu" value={String(total)} icon={FolderOpen} />
         <MetricCard
           label="Dự án BESS Planner"
           value={String(backendProjects.filter((item) => item.project_type === "bess_planning").length)}
@@ -197,7 +197,7 @@ export function MyProjectsApiPage() {
             <input
               className="h-10 w-full rounded-lg border border-brand-line pl-10 pr-4 text-sm outline-none focus:border-brand-blue"
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Tìm tên dự án, site, trạng thái..."
+              placeholder="Tìm tên dự án, địa điểm, trạng thái..."
               value={query}
             />
           </label>
@@ -213,7 +213,7 @@ export function MyProjectsApiPage() {
               <thead className="bg-slate-50 text-left text-brand-muted">
                 <tr>
                   <th className="px-4 py-3">Tên dự án</th>
-                  <th className="px-4 py-3">Site / nguồn</th>
+                  <th className="px-4 py-3">Địa điểm / nguồn</th>
                   <th className="px-4 py-3">Công cụ</th>
                   <th className="px-4 py-3">Trạng thái</th>
                   <th className="px-4 py-3">Cập nhật</th>
@@ -277,7 +277,7 @@ export function MyProjectsApiPage() {
             <div>
               <FolderOpen className="mx-auto text-brand-muted" size={44} />
               <h3 className="mt-3 text-lg font-bold text-brand-navy">Không tìm thấy dự án</h3>
-              <p className="mt-1 text-sm font-medium text-brand-muted">Thử từ khóa khác hoặc tạo dự án mới trên backend.</p>
+              <p className="mt-1 text-sm font-medium text-brand-muted">Thử từ khóa khác hoặc tạo một dự án mới.</p>
             </div>
           </div>
         )}
@@ -299,7 +299,7 @@ export function MyProjectsApiPage() {
 function readProjectCompany(project: ProjectResponse) {
   const configuration = project.configuration;
   const company = configuration.companyName ?? configuration.industry ?? configuration.location;
-  return typeof company === "string" && company.trim() ? company : `Site ${project.site_id.slice(-6)}`;
+  return typeof company === "string" && company.trim() ? company : `Địa điểm ${project.site_id.slice(-6)}`;
 }
 
 function formatDateTime(value: string) {

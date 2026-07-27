@@ -19,6 +19,7 @@ class UserDocument(BaseDocument):
     representative_name: str
     phone: str | None = None
     industry: str | None = None
+    organization_id: str | None = None
     role: UserRole = UserRole.CUSTOMER
     status: UserStatus = UserStatus.ACTIVE
     preferences: UserPreferences = Field(default_factory=UserPreferences)

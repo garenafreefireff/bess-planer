@@ -1,6 +1,7 @@
 import { normalizedValue } from "./math";
 import type {
   ConfidenceResult,
+  FinancingRecommendationResult,
   ResultCalculationConfig,
   ResultScenarioConfig,
   SizingCandidateResult,
@@ -107,6 +108,51 @@ function pickDistinct(sorted: SizingCandidateResult[], used: Set<string>) {
     used.add(picked.id);
   }
   return picked;
+}
+
+function isFinancingEligible(candidate: SizingCandidateResult, assumptions: Step2Assumptions) {
+  if (candidate.warnings.some((warning) => warning.blocking)) {
+    return false;
+  }
+  if (candidate.budgetEvaluation.status === "materially_over") {
+    return false;
+  }
+  if (candidate.equityNpvVnd <= 0) {
+    return false;
+  }
+  if (candidate.equityIrrPct === null || candidate.equityIrrPct < candidate.costOfEquityPct) {
+    return false;
+  }
+  if (candidate.equityPaybackYears === null || candidate.equityPaybackYears > assumptions.analysisYears) {
+    return false;
+  }
+  if (candidate.minimumDscr !== null && candidate.minimumDscr < 1) {
+    return false;
+  }
+  return true;
+}
+
+export function selectFinancingRecommendation(
+  candidates: SizingCandidateResult[],
+  assumptions: Step2Assumptions
+): FinancingRecommendationResult | null {
+  const candidate = [...candidates]
+    .filter((item) => isFinancingEligible(item, assumptions))
+    .sort((left, right) => (
+      right.equityNpvVnd - left.equityNpvVnd
+      || (right.equityIrrPct ?? -Infinity) - (left.equityIrrPct ?? -Infinity)
+      || (right.minimumDscr ?? Infinity) - (left.minimumDscr ?? Infinity)
+      || left.equityInvestmentVnd - right.equityInvestmentVnd
+    ))[0];
+
+  return candidate
+    ? {
+      ...candidate,
+      role: "financing",
+      title: "Khuyến nghị tài trợ vốn",
+      badge: "Equity & DSCR đạt"
+    }
+    : null;
 }
 
 export function selectRepresentativeOptions(candidates: SizingCandidateResult[]) {

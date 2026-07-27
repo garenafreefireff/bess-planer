@@ -448,5 +448,5 @@ export function readWorkspaceApiError(error: unknown) {
     return error.message;
   }
 
-  return error instanceof Error ? error.message : "Đã xảy ra lỗi khi kết nối backend.";
+  return error instanceof Error ? error.message : "Không thể kết nối tới hệ thống. Vui lòng thử lại.";
 }

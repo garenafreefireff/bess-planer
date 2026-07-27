@@ -1,3 +1,4 @@
+import re
 from typing import Any
 
 from bson import ObjectId
@@ -6,6 +7,7 @@ from pymongo import ReturnDocument
 
 from app.core.security import utc_now
 from app.models.project import ProjectDocument
+from app.modules.projects.enums import ProjectStatus, ProjectType
 
 REFERENCE_FIELDS = {
     "user_id",
@@ -84,6 +86,73 @@ class ProjectRepository:
             ProjectDocument.model_validate(_normalize_document_id(document))
             for document in documents
         ]
+
+    async def count_admin(
+        self,
+        *,
+        status: ProjectStatus | None = None,
+        project_type: ProjectType | None = None,
+        search: str | None = None,
+    ) -> int:
+        return await self.collection.count_documents(self._admin_filter(status, project_type, search))
+
+    async def list_admin(
+        self,
+        *,
+        skip: int,
+        limit: int,
+        status: ProjectStatus | None = None,
+        project_type: ProjectType | None = None,
+        search: str | None = None,
+    ) -> list[ProjectDocument]:
+        cursor = (
+            self.collection.find(self._admin_filter(status, project_type, search))
+            .sort("updated_at", -1)
+            .skip(skip)
+            .limit(limit)
+        )
+        documents = await cursor.to_list(length=limit)
+        return [
+            ProjectDocument.model_validate(_normalize_document_id(document))
+            for document in documents
+        ]
+
+    async def update_admin(
+        self,
+        project_id: str,
+        updates: dict[str, Any],
+    ) -> ProjectDocument | None:
+        if not ObjectId.is_valid(project_id):
+            return None
+        payload = _references_to_object_ids(updates)
+        payload["updated_at"] = utc_now()
+        document = await self.collection.find_one_and_update(
+            {"_id": ObjectId(project_id)},
+            {"$set": payload},
+            return_document=ReturnDocument.AFTER,
+        )
+        normalized = _normalize_document_id(document)
+        return ProjectDocument.model_validate(normalized) if normalized else None
+
+    @staticmethod
+    def _admin_filter(
+        status: ProjectStatus | None,
+        project_type: ProjectType | None,
+        search: str | None,
+    ) -> dict[str, Any]:
+        query: dict[str, Any] = {}
+        if status is not None:
+            query["status"] = status.value
+        if project_type is not None:
+            query["project_type"] = project_type.value
+        if search:
+            escaped = {"$regex": re.escape(search.strip()), "$options": "i"}
+            query["$or"] = [
+                {"name": escaped},
+                {"configuration.location": escaped},
+                {"configuration.industry": escaped},
+            ]
+        return query
 
     async def get_by_id_for_user(
         self,

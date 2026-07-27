@@ -87,7 +87,7 @@ export function SizingLabResultPage() {
         <ResultBreadcrumb projectName={sizing.project?.name} />
         <EmptyState
           title="Chưa có kết quả Sizing Lab"
-          description={sizing.error || "Dự án đã có dữ liệu nhưng chưa chạy Sizing Lab hoặc analysis run hiện tại chưa hợp lệ."}
+          description={sizing.error || "Dự án đã có dữ liệu nhưng chưa chạy phân tích hoặc lần phân tích hiện tại chưa hợp lệ."}
           action={(
             <Link className={buttonVariants({ className: "mt-5" })} href="/customer-portal/du-an-cua-toi/tao-du-an">
               Tải file và chạy Sizing Lab
@@ -109,13 +109,13 @@ export function SizingLabResultPage() {
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-[30px] font-bold text-brand-navy">Sizing Lab</h1>
             <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-bold text-brand-green">Hoàn thành</span>
-            <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-brand-blue">{result.calculation_method}</span>
+            <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-brand-blue">Phân tích tối ưu</span>
           </div>
           <p className="mt-2 text-sm font-medium text-brand-muted">
             {sizing.project?.name} · {result.summary.candidate_count} phương án · {result.summary.pareto_count} phương án Pareto
           </p>
           <p className="mt-1 text-xs font-semibold text-brand-muted">
-            Analysis run: {sizing.analysisRun?.id ?? "—"} · Engine {sizing.analysisRun?.engine_version ?? "—"}
+            Mã lần phân tích: {sizing.analysisRun?.id ?? "—"} · Phiên bản tính toán {formatEngineVersion(sizing.analysisRun?.engine_version)}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -134,9 +134,9 @@ export function SizingLabResultPage() {
 
       {sizing.error ? <Notice tone="danger" text={sizing.error} /> : null}
       <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4 text-xs font-medium leading-5 text-brand-muted">
-        <strong className="block text-sm text-brand-blue">Đối chiếu EMS · {result.parity.profile}</strong>
+        <strong className="block text-sm text-brand-blue">Thông số tính toán</strong>
         <span>
-          {result.parity.billing_mode.toUpperCase()} · Peak {formatNumber(result.parity.peak_price_vnd_per_kwh)} · Bình thường {formatNumber(result.parity.normal_price_vnd_per_kwh)} · Thấp điểm {formatNumber(result.parity.offpeak_price_vnd_per_kwh)} VND/kWh · Phí công suất {formatNumber(result.parity.demand_charge_vnd_per_kw_month)} VND/kW-tháng · Peak window {result.parity.peak_windows} · Off window {result.parity.offpeak_windows}
+          {result.parity.billing_mode === "2tc" ? "Biểu giá hai thành phần" : "Biểu giá theo thời gian sử dụng"} · Cao điểm {formatNumber(result.parity.peak_price_vnd_per_kwh)} · Bình thường {formatNumber(result.parity.normal_price_vnd_per_kwh)} · Thấp điểm {formatNumber(result.parity.offpeak_price_vnd_per_kwh)} VND/kWh · Phí công suất {formatNumber(result.parity.demand_charge_vnd_per_kw_month)} VND/kW-tháng · Khung cao điểm {result.parity.peak_windows} · Khung thấp điểm {result.parity.offpeak_windows}
         </span>
         {result.parity.migrated_legacy_configuration ? <span className="mt-1 block font-bold text-amber-700">Dự án cũ đã được tự đồng bộ sang cấu hình EMS hiện tại khi chạy.</span> : null}
       </div>
@@ -281,7 +281,7 @@ function ParetoChart({ candidates, selectedCandidateId, onSelect, compact = fals
   const y = (value: number) => height - padding.bottom - normalize(value, minY, maxY) * (height - padding.top - padding.bottom);
   return (
     <Card className="rounded-xl bg-white p-4 shadow-none">
-      <div className="flex items-center justify-between gap-3"><div><h2 className="font-bold text-brand-navy">Mặt Pareto tiết kiệm × ROI</h2><p className="mt-1 text-xs font-medium text-brand-muted">Đúng Sizing Lab EMS: Pareto theo tiết kiệm Oracle và ROI; ngôi sao do SLSM chọn.</p></div><span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-brand-blue">{candidates.length} candidates</span></div>
+      <div className="flex items-center justify-between gap-3"><div><h2 className="font-bold text-brand-navy">Mặt Pareto tiết kiệm × ROI</h2><p className="mt-1 text-xs font-medium text-brand-muted">Đúng Sizing Lab EMS: Pareto theo tiết kiệm Oracle và ROI; ngôi sao do SLSM chọn.</p></div><span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-brand-blue">{candidates.length} phương án</span></div>
       <svg className={cn("mt-3 w-full", compact ? "h-[220px]" : "h-[300px]")} role="img" viewBox={`0 0 ${width} ${height}`}>
         {[0, 0.25, 0.5, 0.75, 1].map((fraction) => {
           const lineY = padding.top + fraction * (height - padding.top - padding.bottom);
@@ -424,11 +424,11 @@ function MonthlyTab({ result }: { result: NonNullable<ReturnType<typeof useSizin
 function InputTab({ result, projectConfiguration, datasets, history }: { result: NonNullable<ReturnType<typeof useSizingLab>["result"]>; projectConfiguration: Record<string, unknown>; datasets: Array<{ id: string; dataset_type: string; status: string; row_count: number; valid_row_count: number; interval_minutes: number | null; start_at: string | null; end_at: string | null }>; history: AnalysisRunResponse[] }) {
   return (
     <div className="mt-4 grid grid-cols-2 gap-4 max-xl:grid-cols-1">
-      <Card className="rounded-xl p-5 shadow-none"><h2 className="font-bold text-brand-navy">Dataset đầu vào</h2><div className="mt-4 grid gap-3">{datasets.length ? datasets.map((dataset) => <div className="rounded-lg border border-brand-line bg-slate-50 p-4" key={dataset.id}><div className="flex justify-between gap-3"><strong className="text-sm text-brand-navy">{dataset.dataset_type === "load_profile" ? "Phụ tải" : "Điện mặt trời"}</strong><span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-brand-blue">{dataset.status}</span></div><p className="mt-2 text-xs font-medium leading-5 text-brand-muted">{formatNumber(dataset.valid_row_count)}/{formatNumber(dataset.row_count)} dòng · chu kỳ {dataset.interval_minutes ?? "—"} phút<br />{formatDate(dataset.start_at)} – {formatDate(dataset.end_at)}</p></div>) : <div className="rounded-lg border border-green-100 bg-green-50 p-4 text-sm font-medium leading-6 text-brand-muted"><strong className="block text-brand-green">File đầu vào không được lưu</strong>Load/PV chỉ được dùng tạm thời trong request chạy Oracle và đã bị xóa sau khi hoàn tất. Trang này chỉ giữ thống kê đầu vào trong kết quả analysis.</div>}</div></Card>
+      <Card className="rounded-xl p-5 shadow-none"><h2 className="font-bold text-brand-navy">Bộ dữ liệu đầu vào</h2><div className="mt-4 grid gap-3">{datasets.length ? datasets.map((dataset) => <div className="rounded-lg border border-brand-line bg-slate-50 p-4" key={dataset.id}><div className="flex justify-between gap-3"><strong className="text-sm text-brand-navy">{dataset.dataset_type === "load_profile" ? "Phụ tải" : "Điện mặt trời"}</strong><span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-brand-blue">{formatDatasetStatus(dataset.status)}</span></div><p className="mt-2 text-xs font-medium leading-5 text-brand-muted">{formatNumber(dataset.valid_row_count)}/{formatNumber(dataset.row_count)} dòng · chu kỳ {dataset.interval_minutes ?? "—"} phút<br />{formatDate(dataset.start_at)} – {formatDate(dataset.end_at)}</p></div>) : <div className="rounded-lg border border-green-100 bg-green-50 p-4 text-sm font-medium leading-6 text-brand-muted"><strong className="block text-brand-green">File đầu vào không được lưu</strong>Dữ liệu phụ tải và điện mặt trời chỉ được sử dụng trong quá trình phân tích. Trang này chỉ lưu các thống kê đầu vào cần thiết để trình bày kết quả.</div>}</div></Card>
       <Card className="rounded-xl p-5 shadow-none"><h2 className="font-bold text-brand-navy">Giả định đã sử dụng</h2><div className="mt-4 grid gap-2">{Object.entries(result.assumptions).map(([key, value]) => <DetailRow key={key} label={humanizeKey(key)} value={formatNumber(value, 2)} />)}</div></Card>
       <Card className="rounded-xl p-5 shadow-none"><h2 className="font-bold text-brand-navy">Cấu hình dự án</h2><div className="mt-4 grid gap-2">{Object.entries(projectConfiguration).filter(([, value]) => ["string", "number", "boolean"].includes(typeof value)).map(([key, value]) => <DetailRow key={key} label={humanizeKey(key)} value={String(value)} />)}</div></Card>
       <Card className="rounded-xl p-5 shadow-none"><h2 className="font-bold text-brand-navy">Chất lượng dữ liệu</h2><div className="mt-4 grid gap-2"><DetailRow label="Múi giờ" value={result.input_quality.timezone} /><DetailRow label="Đơn vị Load" value={result.input_quality.configured_units.load} /><DetailRow label="Đơn vị PV" value={result.input_quality.configured_units.pv} /><DetailRow label="Peak Load" value={`${formatNumber(result.summary.site_peak_kw)} kW`} /><DetailRow label="Năng lượng năm" value={`${formatNumber(result.summary.annual_load_energy_kwh)} kWh`} /></div></Card>
-      <Card className="col-span-2 rounded-xl p-5 shadow-none max-xl:col-span-1"><h2 className="font-bold text-brand-navy">Lịch sử Sizing Lab</h2><div className="mt-4 overflow-x-auto"><table className="w-full min-w-[720px] text-left text-sm"><thead className="border-b border-brand-line text-brand-muted"><tr><th className="py-3 font-bold">Thời gian</th><th className="py-3 font-bold">Analysis run</th><th className="py-3 font-bold">Trạng thái</th><th className="py-3 font-bold">Engine</th><th className="py-3 font-bold">Phương án đề xuất</th></tr></thead><tbody className="divide-y divide-brand-line">{history.map((run) => { const runResult = run.result as Record<string, unknown>; const selected = runResult.selected && typeof runResult.selected === "object" && !Array.isArray(runResult.selected) ? runResult.selected as Record<string, unknown> : null; return <tr key={run.id ?? run.created_at}><td className="py-3">{formatDate(run.created_at)}</td><td className="py-3 font-mono text-xs">{run.id?.slice(-8) ?? "—"}</td><td className="py-3 font-semibold text-brand-blue">{run.status}</td><td className="py-3">{run.engine_version}</td><td className="py-3 font-bold text-brand-navy">{selected && typeof selected.energy_kwh === "number" && typeof selected.power_kw === "number" ? `${formatNumber(selected.energy_kwh)} / ${formatNumber(selected.power_kw)}` : "—"}</td></tr>; })}</tbody></table></div></Card>
+      <Card className="col-span-2 rounded-xl p-5 shadow-none max-xl:col-span-1"><h2 className="font-bold text-brand-navy">Lịch sử Sizing Lab</h2><div className="mt-4 overflow-x-auto"><table className="w-full min-w-[720px] text-left text-sm"><thead className="border-b border-brand-line text-brand-muted"><tr><th className="py-3 font-bold">Thời gian</th><th className="py-3 font-bold">Lần phân tích</th><th className="py-3 font-bold">Trạng thái</th><th className="py-3 font-bold">Phiên bản tính toán</th><th className="py-3 font-bold">Phương án đề xuất</th></tr></thead><tbody className="divide-y divide-brand-line">{history.map((run) => { const runResult = run.result as Record<string, unknown>; const selected = runResult.selected && typeof runResult.selected === "object" && !Array.isArray(runResult.selected) ? runResult.selected as Record<string, unknown> : null; return <tr key={run.id ?? run.created_at}><td className="py-3">{formatDate(run.created_at)}</td><td className="py-3 font-mono text-xs">{run.id?.slice(-8) ?? "—"}</td><td className="py-3 font-semibold text-brand-blue">{formatAnalysisStatus(run.status)}</td><td className="py-3">{formatEngineVersion(run.engine_version)}</td><td className="py-3 font-bold text-brand-navy">{selected && typeof selected.energy_kwh === "number" && typeof selected.power_kw === "number" ? `${formatNumber(selected.energy_kwh)} / ${formatNumber(selected.power_kw)}` : "—"}</td></tr>; })}</tbody></table></div></Card>
     </div>
   );
 }
@@ -494,6 +494,45 @@ function formatDate(value: string | null) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString("vi-VN");
 }
 
+function formatDatasetStatus(value: string) {
+  const labels: Record<string, string> = {
+    ready: "Sẵn sàng",
+    warning: "Cần kiểm tra",
+    invalid: "Không hợp lệ",
+    processing: "Đang xử lý"
+  };
+  return labels[value] ?? "Chưa xác định";
+}
+
+function formatAnalysisStatus(value: string) {
+  const labels: Record<string, string> = {
+    queued: "Đang chờ",
+    running: "Đang phân tích",
+    completed: "Hoàn thành",
+    failed: "Không thành công",
+    cancelled: "Đã hủy"
+  };
+  return labels[value] ?? "Chưa xác định";
+}
+
+function formatEngineVersion(value: string | null | undefined) {
+  if (!value) return "—";
+  const version = value.match(/(\d+\.\d+\.\d+)$/)?.[1];
+  return version ? `v${version}` : "Hiện hành";
+}
+
 function humanizeKey(value: string) {
-  return value.replace(/([a-z])([A-Z])/g, "$1 $2").replaceAll("_", " ");
+  const labels: Record<string, string> = {
+    battery_cost_vnd_per_kwh: "Đơn giá pin",
+    pcs_cost_vnd_per_kw: "Đơn giá PCS",
+    opex_pct: "Chi phí vận hành hằng năm",
+    discount_rate_pct: "Tỷ lệ chiết khấu",
+    analysis_years: "Thời hạn phân tích",
+    realization_rate_pct: "Tỷ lệ lợi ích thực hiện",
+    power_kw: "Công suất BESS",
+    energy_kwh: "Dung lượng BESS",
+    objective: "Mục tiêu phân tích",
+    billing_mode: "Phương thức tính tiền điện"
+  };
+  return labels[value] ?? value.replace(/([a-z])([A-Z])/g, "$1 $2").replaceAll("_", " ");
 }

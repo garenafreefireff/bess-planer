@@ -38,7 +38,7 @@ async def test_quick_sizing_capture_unlocks_report_and_saves_snapshots() -> None
     payload = QuickSizingLeadCreateRequest(
         full_name="Nguyen Van A",
         email="A@Example.com",
-        phone="0900000000",
+        phone="0916848638",
         company_name="DataInsight customer",
         privacy_consent=True,
         marketing_consent=False,
@@ -85,7 +85,7 @@ def test_quick_sizing_capture_requires_privacy_consent() -> None:
         QuickSizingLeadCreateRequest(
             full_name="Nguyen Van A",
             email="a@example.com",
-            phone="0900000000",
+            phone="0916848638",
             privacy_consent=False,
             input_snapshot={"industry": "manufacturing"},
             result_snapshot={"power_kw": 500},

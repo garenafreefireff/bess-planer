@@ -110,7 +110,16 @@ export type QuickSizingMetrics = {
   paybackYears: number | null;
   npvVnd: number;
   irrPct: number | null;
+  debtAmountVnd: number;
+  equityInvestmentVnd: number;
+  totalInterestVnd: number;
+  minimumDscr: number | null;
+  costOfEquityPct: number;
+  equityNpvVnd: number;
+  equityIrrPct: number | null;
+  equityPaybackYears: number | null;
   cashFlowVnd: number[];
+  equityCashFlowVnd: number[];
 };
 
 export type QuickSizingOption = QuickSizingMetrics & {
@@ -724,7 +733,16 @@ function metricsFromCandidate(candidate: SizingCandidateResult): QuickSizingMetr
     paybackYears: candidate.paybackYears,
     npvVnd: candidate.npvVnd,
     irrPct: candidate.irrPct,
-    cashFlowVnd: candidate.yearlyResults.map((row) => row.fcffVnd)
+    debtAmountVnd: candidate.debtAmountVnd,
+    equityInvestmentVnd: candidate.equityInvestmentVnd,
+    totalInterestVnd: candidate.totalInterestVnd,
+    minimumDscr: candidate.minimumDscr,
+    costOfEquityPct: candidate.costOfEquityPct,
+    equityNpvVnd: candidate.equityNpvVnd,
+    equityIrrPct: candidate.equityIrrPct,
+    equityPaybackYears: candidate.equityPaybackYears,
+    cashFlowVnd: candidate.yearlyResults.map((row) => row.fcffVnd),
+    equityCashFlowVnd: candidate.yearlyResults.map((row) => row.equityCashFlowVnd)
   };
 }
 
@@ -754,7 +772,16 @@ function emptyMetrics(assumptions: QuickSizingAssumptions): QuickSizingMetrics {
     paybackYears: null,
     npvVnd: 0,
     irrPct: null,
-    cashFlowVnd: []
+    debtAmountVnd: 0,
+    equityInvestmentVnd: 0,
+    totalInterestVnd: 0,
+    minimumDscr: null,
+    costOfEquityPct: assumptions.waccPct,
+    equityNpvVnd: 0,
+    equityIrrPct: null,
+    equityPaybackYears: null,
+    cashFlowVnd: [],
+    equityCashFlowVnd: []
   };
 }
 

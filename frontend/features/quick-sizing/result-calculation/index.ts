@@ -17,9 +17,23 @@ export { allocateDispatchEnergy } from "./dispatch-energy";
 export { calculateSavings } from "./calculate-savings";
 export { calculateCashFlow } from "./calculate-cash-flow";
 export { calculateBudgetEvaluation } from "./calculate-budget";
-export { calculateNpv, calculateIrr, calculatePayback, calculateLcos } from "./calculate-financial-metrics";
+export {
+  calculateDebtSummary,
+  calculateEquityIrr,
+  calculateEquityNpv,
+  calculateEquityPayback,
+  calculateIrr,
+  calculateLcos,
+  calculateNpv,
+  calculatePayback,
+  resolveCostOfEquityPct
+} from "./calculate-financial-metrics";
 export { markParetoCandidates, buildParetoPoints } from "./calculate-pareto";
-export { scoreCandidates, selectRepresentativeOptions } from "./calculate-recommendation";
+export {
+  scoreCandidates,
+  selectFinancingRecommendation,
+  selectRepresentativeOptions
+} from "./calculate-recommendation";
 export { calculateConfidence } from "./calculate-confidence";
 export type {
   BasicInfoForResult,
@@ -35,6 +49,7 @@ export type {
   EpcRateBand,
   EquipmentCostCatalogItem,
   EquipmentUnitCostMetadata,
+  FinancingRecommendationResult,
   GeneratedCandidate,
   MetricRange,
   ParetoPoint,

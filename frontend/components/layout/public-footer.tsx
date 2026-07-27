@@ -36,11 +36,12 @@ export function PublicFooter() {
           <a className="mb-2 flex gap-2 text-xs leading-6 text-brand-muted" href="mailto:energyinsight@datainsight.vn">
             <Mail size={16} /> energyinsight@datainsight.vn
           </a>
-          <a className="mb-2 flex gap-2 text-xs leading-6 text-brand-muted" href="tel:+842466857906">
-            (+84) 24 6685 7906
+          <a className="mb-2 flex gap-2 text-xs leading-6 text-brand-muted" href="tel:0916848638">
+            0916848638
           </a>
           <a className="flex gap-2 text-xs leading-6 text-brand-muted" href="/lien-he">
-            <MapPin size={16} /> Tòa nhà 3D, Duy Tân, Cầu Giấy, Hà Nội, Việt Nam
+            <MapPin size={16} />
+            <span>Số 02 Louis IX -LK 29, Khu đô thị mới Hoàng Văn Thụ, Phường Hoàng Mai, TP Hà Nội, Việt Nam</span>
           </a>
         </div>
         <form className="min-w-0 rounded-lg border border-brand-line bg-slate-50/70 p-4" onSubmit={submitNewsletter}>

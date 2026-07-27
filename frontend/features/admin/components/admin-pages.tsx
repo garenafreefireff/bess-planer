@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   Bell,
@@ -22,6 +25,8 @@ import {
   HelpCircle,
   Home,
   Lock,
+  LogOut,
+  Loader2,
   Menu,
   MoreHorizontal,
   MoreVertical,
@@ -41,10 +46,12 @@ import {
   Zap
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { authApi } from "@/features/auth/api/auth.api";
+import { useAuthStore } from "@/features/auth/store/auth.store";
 import { cn } from "@/lib/utils";
 
 type Tone = "blue" | "green" | "purple" | "orange" | "red" | "yellow";
@@ -466,6 +473,25 @@ export function AdminReportsPage() {
 }
 
 export function AdminShell({ activeItem, action, children, subtitle, title }: { activeItem: string; action?: ReactNode; children: ReactNode; subtitle: string; title: string }) {
+  const router = useRouter();
+  const user = useAuthStore((state) => state.user);
+  const refreshToken = useAuthStore((state) => state.refreshToken);
+  const clearSession = useAuthStore((state) => state.clearSession);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const adminName = user?.representative_name || "Admin";
+  const adminEmail = user?.email || "admin@energyinsight.vn";
+
+  const logoutAdmin = async () => {
+    setLoggingOut(true);
+    try {
+      await authApi.logout(refreshToken).catch(() => undefined);
+    } finally {
+      clearSession();
+      setLoggingOut(false);
+      router.replace("/admin/login");
+    }
+  };
+
   return (
     <main className="min-h-screen bg-white text-brand-navy">
       <div className="grid min-h-screen grid-cols-[300px_1fr] max-xl:grid-cols-[260px_1fr] max-lg:grid-cols-1">
@@ -497,11 +523,13 @@ export function AdminShell({ activeItem, action, children, subtitle, title }: { 
               <div className="flex items-center gap-3">
                 <AdminAvatar />
                 <span className="min-w-0">
-                  <strong className="block truncate text-sm">Nguyễn Văn Admin</strong>
-                  <small className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-bold text-brand-green">Super Admin</small>
-                  <small className="mt-1 block truncate text-xs text-brand-muted">admin@energyinsight.vn</small>
+                  <strong className="block truncate text-sm">{adminName}</strong>
+                  <small className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-bold text-brand-green">Admin</small>
+                  <small className="mt-1 block truncate text-xs text-brand-muted">{adminEmail}</small>
                 </span>
-                <ChevronDown className="ml-auto text-brand-muted" size={16} />
+                <button className="ml-auto grid size-8 place-items-center rounded-md text-brand-muted hover:bg-blue-50 hover:text-brand-blue disabled:opacity-60" disabled={loggingOut} onClick={logoutAdmin} type="button" aria-label="Đăng xuất admin">
+                  {loggingOut ? <Loader2 className="animate-spin" size={16} /> : <LogOut size={16} />}
+                </button>
               </div>
             </div>
           </div>
@@ -530,8 +558,11 @@ export function AdminShell({ activeItem, action, children, subtitle, title }: { 
               </button>
               <button className="flex items-center gap-3" type="button">
                 <AdminAvatar />
-                <strong className="text-sm">Nguyễn Văn Admin</strong>
+                <strong className="max-w-[180px] truncate text-sm">{adminName}</strong>
                 <ChevronDown size={17} />
+              </button>
+              <button className="grid size-10 place-items-center rounded-md text-brand-muted hover:bg-blue-50 hover:text-brand-blue disabled:opacity-60" disabled={loggingOut} onClick={logoutAdmin} type="button" aria-label="Đăng xuất admin">
+                {loggingOut ? <Loader2 className="animate-spin" size={18} /> : <LogOut size={18} />}
               </button>
             </div>
           </header>

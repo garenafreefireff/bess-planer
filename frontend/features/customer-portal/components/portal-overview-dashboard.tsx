@@ -80,7 +80,7 @@ export function PortalOverviewDashboard() {
             Nền tảng phân tích & lập kế hoạch năng lượng toàn diện cho doanh nghiệp.
           </p>
           <p className="mt-1 text-xs font-semibold text-brand-muted">
-            Dữ liệu được đồng bộ trực tiếp từ backend cho {user?.company_name || user?.email || "workspace hiện tại"}.
+            Dữ liệu mới nhất của {user?.company_name || user?.email || "workspace hiện tại"} được tổng hợp tại đây.
           </p>
         </div>
         <button
@@ -118,7 +118,6 @@ export function PortalOverviewDashboard() {
             <KpiGrid summary={summary} />
             <RecentProjects projects={summary.recentProjects} siteNames={summary.siteNames} />
           </div>
-
           <div className="grid content-start gap-5">
             <RecentActivity activities={summary.activities} />
             <WorkspaceHealth summary={summary} companyName={user?.company_name || "Workspace của bạn"} />
@@ -144,21 +143,21 @@ function ApplicationsSection({ summary }: { summary: OverviewSummary }) {
     },
     {
       title: "BESS Planner",
-      description: "Phân tích Oracle LP-PF, Pareto và SLSM trên dữ liệu vận hành thật.",
+      description: "Phân tích dữ liệu vận hành, so sánh phương án và đề xuất cấu hình BESS phù hợp.",
       href: plannerReady ? "/customer-portal/du-an-cua-toi" : "/customer-portal?section=data",
       action: plannerReady ? "Mở ứng dụng" : "Hoàn thiện cấu hình",
       icon: BatteryCharging,
       tone: "green" as const,
-      meta: plannerReady ? `${summary.bessProjects} dự án` : "Thiếu Site, biểu giá hoặc BESS catalog"
+      meta: plannerReady ? `${summary.bessProjects} dự án` : "Thiếu địa điểm, biểu giá hoặc cấu hình BESS"
     },
     {
-      title: "Cấu hình hệ thống",
-      description: "Quản lý Site, biểu giá và BESS catalog dùng cho các lần phân tích.",
+      title: "Tài nguyên dự án",
+      description: "Quản lý địa điểm, biểu giá điện và cấu hình BESS dùng chung cho các lần phân tích.",
       href: "/customer-portal?section=data",
       action: "Mở cấu hình",
       icon: Database,
       tone: "purple" as const,
-      meta: `${summary.activeSites} site · ${summary.activeTariffs} biểu giá · ${summary.activeCatalog} catalog`
+      meta: `${summary.activeSites} địa điểm · ${summary.activeTariffs} biểu giá · ${summary.activeCatalog} cấu hình`
     }
   ];
 
@@ -167,7 +166,7 @@ function ApplicationsSection({ summary }: { summary: OverviewSummary }) {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold text-brand-navy">Ứng dụng khả dụng</h2>
-          <p className="mt-1 text-xs font-medium text-brand-muted">Trạng thái ứng dụng được xác định từ tài nguyên backend hiện có.</p>
+          <p className="mt-1 text-xs font-medium text-brand-muted">Trạng thái ứng dụng được cập nhật theo các tài nguyên hiện có trong workspace.</p>
         </div>
         <span className={cn("rounded-full px-3 py-1 text-xs font-bold", plannerReady ? "bg-green-50 text-brand-green" : "bg-amber-50 text-amber-700")}> 
           {plannerReady ? "Workspace sẵn sàng" : "Cần bổ sung cấu hình"}
@@ -220,34 +219,10 @@ function ApplicationsSection({ summary }: { summary: OverviewSummary }) {
 
 function KpiGrid({ summary }: { summary: OverviewSummary }) {
   const cards = [
-    {
-      label: "Tổng dự án",
-      value: summary.totalProjects,
-      detail: `${summary.activeProjects} đang hoạt động · ${summary.completedProjects} hoàn thành`,
-      icon: FolderOpen,
-      tone: "blue" as const
-    },
-    {
-      label: "Kịch bản đã lưu",
-      value: summary.savedScenarios,
-      detail: `${summary.projectsWithScenarios} dự án có kịch bản`,
-      icon: Layers3,
-      tone: "green" as const
-    },
-    {
-      label: "Tổng lượt phân tích",
-      value: summary.totalAnalyses,
-      detail: `${summary.runningAnalyses} đang chạy · ${summary.failedAnalyses} lỗi`,
-      icon: Gauge,
-      tone: "blue" as const
-    },
-    {
-      label: "Phân tích hoàn thành",
-      value: summary.completedAnalyses,
-      detail: "Chỉ lưu cấu hình và kết quả, không lưu file đầu vào",
-      icon: FileBarChart,
-      tone: "purple" as const
-    }
+    { label: "Tổng dự án", value: summary.totalProjects, detail: `${summary.activeProjects} đang hoạt động · ${summary.completedProjects} hoàn thành`, icon: FolderOpen, tone: "blue" as const },
+    { label: "Kịch bản đã lưu", value: summary.savedScenarios, detail: `${summary.projectsWithScenarios} dự án có kịch bản`, icon: Layers3, tone: "green" as const },
+    { label: "Tổng lượt phân tích", value: summary.totalAnalyses, detail: `${summary.runningAnalyses} đang chạy · ${summary.failedAnalyses} lỗi`, icon: Gauge, tone: "blue" as const },
+    { label: "Phân tích hoàn thành", value: summary.completedAnalyses, detail: "Chỉ lưu cấu hình và kết quả, không lưu file đầu vào", icon: FileBarChart, tone: "purple" as const }
   ];
 
   return (
@@ -272,48 +247,32 @@ function RecentProjects({ projects, siteNames }: { projects: ProjectResponse[]; 
       <div className="flex items-center justify-between gap-3 border-b border-brand-line px-4 py-4">
         <div>
           <h2 className="text-xl font-bold text-brand-navy">Dự án gần đây</h2>
-          <p className="mt-1 text-xs font-medium text-brand-muted">Sắp xếp theo thời điểm cập nhật từ backend.</p>
+          <p className="mt-1 text-xs font-medium text-brand-muted">Sắp xếp theo lần cập nhật gần nhất.</p>
         </div>
         <Link className="inline-flex items-center gap-2 text-sm font-bold text-brand-blue" href="/customer-portal/du-an-cua-toi">
           Xem tất cả dự án<ArrowRight size={17} />
         </Link>
       </div>
-
       {projects.length ? (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[840px] border-collapse text-sm">
             <thead className="bg-slate-50 text-left text-brand-muted">
-              <tr>
-                <th className="px-4 py-3">Tên dự án</th>
-                <th className="px-4 py-3">Site</th>
-                <th className="px-4 py-3">Ứng dụng</th>
-                <th className="px-4 py-3">Trạng thái</th>
-                <th className="px-4 py-3">Cập nhật</th>
-              </tr>
+              <tr><th className="px-4 py-3">Tên dự án</th><th className="px-4 py-3">Địa điểm</th><th className="px-4 py-3">Ứng dụng</th><th className="px-4 py-3">Trạng thái</th><th className="px-4 py-3">Cập nhật</th></tr>
             </thead>
             <tbody>
               {projects.map((project) => (
                 <tr className="border-t border-brand-line" key={project.id}>
-                  <td className="px-4 py-3 font-bold text-brand-navy">
-                    <Link
-                      className="hover:text-brand-blue"
-                      href={project.project_type === "quick_sizing" ? "/quick-sizing/ket-qua" : `/customer-portal/du-an-cua-toi/ket-qua?projectId=${project.id}`}
-                    >
-                      {project.name}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 font-medium text-brand-muted">{siteNames.get(project.site_id) || `Site ${project.site_id.slice(-6)}`}</td>
+                  <td className="px-4 py-3 font-bold text-brand-navy"><Link className="hover:text-brand-blue" href={project.project_type === "quick_sizing" ? "/quick-sizing/ket-qua" : `/customer-portal/du-an-cua-toi/ket-qua?projectId=${project.id}`}>{project.name}</Link></td>
+                  <td className="px-4 py-3 font-medium text-brand-muted">{siteNames.get(project.site_id) || `Địa điểm ${project.site_id.slice(-6)}`}</td>
                   <td className="px-4 py-3 font-semibold text-brand-navy">{project.project_type === "quick_sizing" ? "Quick Sizing" : "BESS Planner"}</td>
                   <td className="px-4 py-3"><ProjectStatus status={project.status} /></td>
-                  <td className="px-4 py-3 whitespace-nowrap font-medium text-brand-muted">{formatDateTime(project.updated_at)}</td>
+                  <td className="whitespace-nowrap px-4 py-3 font-medium text-brand-muted">{formatDateTime(project.updated_at)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      ) : (
-        <EmptyCard icon={FolderOpen} title="Chưa có dự án" description="Tạo dự án BESS Planner đầu tiên để bắt đầu phân tích." actionHref="/customer-portal/du-an-cua-toi/tao-du-an" actionLabel="Tạo dự án" />
-      )}
+      ) : <EmptyCard icon={FolderOpen} title="Chưa có dự án" description="Tạo dự án BESS Planner đầu tiên để bắt đầu phân tích." actionHref="/customer-portal/du-an-cua-toi/tao-du-an" actionLabel="Tạo dự án" />}
     </Card>
   );
 }
@@ -321,69 +280,36 @@ function RecentProjects({ projects, siteNames }: { projects: ProjectResponse[]; 
 function RecentActivity({ activities }: { activities: ActivityRow[] }) {
   return (
     <Card className="rounded-xl bg-white p-4 shadow-panel">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-brand-navy">Hoạt động gần đây</h2>
-          <p className="mt-1 text-xs font-medium text-brand-muted">Tổng hợp từ dự án và các analysis run đã lưu.</p>
-        </div>
-        <Activity className="text-brand-blue" size={20} />
-      </div>
+      <div className="flex items-center justify-between"><div><h2 className="text-xl font-bold text-brand-navy">Hoạt động gần đây</h2><p className="mt-1 text-xs font-medium text-brand-muted">Tổng hợp từ dự án và các lần phân tích đã lưu.</p></div><Activity className="text-brand-blue" size={20} /></div>
       {activities.length ? (
         <div className="mt-5 grid gap-4">
           {activities.map(({ at, detail, icon: Icon, id, title, tone }) => (
             <div className="grid grid-cols-[40px_1fr] gap-3" key={id}>
               <span className={cn("grid size-10 place-items-center rounded-full", toneClasses[tone])}><Icon size={19} /></span>
-              <div className="min-w-0">
-                <strong className="block text-sm font-bold text-brand-navy">{title}</strong>
-                <p className="mt-1 truncate text-xs font-medium text-brand-muted" title={detail}>{detail}</p>
-                <time className="mt-1 block text-[11px] font-semibold text-brand-muted">{formatDateTime(at)}</time>
-              </div>
+              <div className="min-w-0"><strong className="block text-sm font-bold text-brand-navy">{title}</strong><p className="mt-1 truncate text-xs font-medium text-brand-muted" title={detail}>{detail}</p><time className="mt-1 block text-[11px] font-semibold text-brand-muted">{formatDateTime(at)}</time></div>
             </div>
           ))}
         </div>
-      ) : (
-        <div className="mt-5 rounded-xl bg-slate-50 p-5 text-center">
-          <Activity className="mx-auto text-brand-muted" size={32} />
-          <p className="mt-2 text-sm font-semibold text-brand-muted">Chưa phát sinh hoạt động.</p>
-        </div>
-      )}
+      ) : <div className="mt-5 rounded-xl bg-slate-50 p-5 text-center"><Activity className="mx-auto text-brand-muted" size={32} /><p className="mt-2 text-sm font-semibold text-brand-muted">Chưa phát sinh hoạt động.</p></div>}
     </Card>
   );
 }
 
 function WorkspaceHealth({ summary, companyName }: { summary: OverviewSummary; companyName: string }) {
   const checks = [
-    { label: "Site hoạt động", value: `${summary.activeSites}/${summary.totalSites}`, ok: summary.activeSites > 0 },
+    { label: "Địa điểm hoạt động", value: `${summary.activeSites}/${summary.totalSites}`, ok: summary.activeSites > 0 },
     { label: "Biểu giá hoạt động", value: `${summary.activeTariffs}/${summary.totalTariffs}`, ok: summary.activeTariffs > 0 },
-    { label: "BESS catalog hoạt động", value: `${summary.activeCatalog}/${summary.totalCatalog}`, ok: summary.activeCatalog > 0 }
+    { label: "Cấu hình BESS hoạt động", value: `${summary.activeCatalog}/${summary.totalCatalog}`, ok: summary.activeCatalog > 0 }
   ];
   const readyCount = checks.filter((item) => item.ok).length;
   const readinessPct = Math.round((readyCount / checks.length) * 100);
 
   return (
     <Card className="rounded-xl border-green-100 bg-gradient-to-br from-green-50/70 to-white p-4 shadow-panel">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <span className="text-xs font-bold uppercase tracking-wide text-brand-green">Tình trạng workspace</span>
-          <h2 className="mt-1 text-lg font-bold text-brand-navy">{companyName}</h2>
-        </div>
-        <span className={cn("rounded-full px-3 py-1 text-xs font-bold", readinessPct === 100 ? "bg-green-100 text-brand-green" : "bg-amber-50 text-amber-700")}>{readinessPct}% sẵn sàng</span>
-      </div>
+      <div className="flex items-start justify-between gap-3"><div><span className="text-xs font-bold uppercase tracking-wide text-brand-green">Tình trạng workspace</span><h2 className="mt-1 text-lg font-bold text-brand-navy">{companyName}</h2></div><span className={cn("rounded-full px-3 py-1 text-xs font-bold", readinessPct === 100 ? "bg-green-100 text-brand-green" : "bg-amber-50 text-amber-700")}>{readinessPct}% sẵn sàng</span></div>
       <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-brand-green transition-all" style={{ width: `${readinessPct}%` }} /></div>
-      <div className="mt-4 grid gap-2">
-        {checks.map((item) => (
-          <div className="flex items-center justify-between rounded-lg bg-white/80 px-3 py-2 text-sm" key={item.label}>
-            <span className="flex items-center gap-2 font-semibold text-brand-muted">
-              {item.ok ? <CheckCircle2 className="text-brand-green" size={17} /> : <AlertTriangle className="text-amber-600" size={17} />}
-              {item.label}
-            </span>
-            <strong className="text-brand-navy">{item.value}</strong>
-          </div>
-        ))}
-      </div>
-      <Link className={buttonVariants({ variant: "secondary", size: "sm", className: "mt-4 w-full" })} href="/customer-portal?section=data">
-        <Settings2 size={16} />Quản lý tài nguyên
-      </Link>
+      <div className="mt-4 grid gap-2">{checks.map((item) => <div className="flex items-center justify-between rounded-lg bg-white/80 px-3 py-2 text-sm" key={item.label}><span className="flex items-center gap-2 font-semibold text-brand-muted">{item.ok ? <CheckCircle2 className="text-brand-green" size={17} /> : <AlertTriangle className="text-amber-600" size={17} />}{item.label}</span><strong className="text-brand-navy">{item.value}</strong></div>)}</div>
+      <Link className={buttonVariants({ variant: "secondary", size: "sm", className: "mt-4 w-full" })} href="/customer-portal?section=data"><Settings2 size={16} />Quản lý tài nguyên</Link>
     </Card>
   );
 }
@@ -391,52 +317,19 @@ function WorkspaceHealth({ summary, companyName }: { summary: OverviewSummary; c
 function NextStepCard({ summary }: { summary: OverviewSummary }) {
   const next = getNextStep(summary);
   const Icon = next.icon;
-  return (
-    <Card className="rounded-xl border-blue-100 bg-blue-50/45 p-4 shadow-panel">
-      <div className="flex items-start gap-3">
-        <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-white text-brand-blue"><Icon size={23} /></span>
-        <div>
-          <h2 className="font-bold text-brand-navy">Bước tiếp theo</h2>
-          <p className="mt-2 text-sm font-medium leading-6 text-brand-muted">{next.description}</p>
-        </div>
-      </div>
-      <Link className={buttonVariants({ className: "mt-4 w-full" })} href={next.href}>{next.action}<ArrowRight size={16} /></Link>
-    </Card>
-  );
+  return <Card className="rounded-xl border-blue-100 bg-blue-50/45 p-4 shadow-panel"><div className="flex items-start gap-3"><span className="grid size-11 shrink-0 place-items-center rounded-xl bg-white text-brand-blue"><Icon size={23} /></span><div><h2 className="font-bold text-brand-navy">Bước tiếp theo</h2><p className="mt-2 text-sm font-medium leading-6 text-brand-muted">{next.description}</p></div></div><Link className={buttonVariants({ className: "mt-4 w-full" })} href={next.href}>{next.action}<ArrowRight size={16} /></Link></Card>;
 }
 
 function OverviewLoading() {
-  return (
-    <div className="mt-6 grid min-h-[420px] place-items-center rounded-xl border border-brand-line bg-white shadow-panel">
-      <div className="text-center">
-        <LoaderCircle className="mx-auto animate-spin text-brand-blue" size={40} />
-        <h2 className="mt-4 font-bold text-brand-navy">Đang tổng hợp dữ liệu workspace</h2>
-        <p className="mt-1 text-sm font-medium text-brand-muted">Đang đọc dự án, cấu hình và analysis run từ backend.</p>
-      </div>
-    </div>
-  );
+  return <div className="mt-6 grid min-h-[420px] place-items-center rounded-xl border border-brand-line bg-white shadow-panel"><div className="text-center"><LoaderCircle className="mx-auto animate-spin text-brand-blue" size={40} /><h2 className="mt-4 font-bold text-brand-navy">Đang tổng hợp dữ liệu workspace</h2><p className="mt-1 text-sm font-medium text-brand-muted">Đang tổng hợp dự án, cấu hình và các lần phân tích gần đây.</p></div></div>;
 }
 
 function EmptyCard({ actionHref, actionLabel, description, icon: Icon, title }: { actionHref: string; actionLabel: string; description: string; icon: LucideIcon; title: string }) {
-  return (
-    <div className="grid min-h-[260px] place-items-center p-8 text-center">
-      <div>
-        <Icon className="mx-auto text-brand-muted" size={42} />
-        <h3 className="mt-3 text-lg font-bold text-brand-navy">{title}</h3>
-        <p className="mt-1 text-sm font-medium text-brand-muted">{description}</p>
-        <Link className={buttonVariants({ size: "sm", className: "mt-4" })} href={actionHref}>{actionLabel}</Link>
-      </div>
-    </div>
-  );
+  return <div className="grid min-h-[260px] place-items-center p-8 text-center"><div><Icon className="mx-auto text-brand-muted" size={42} /><h3 className="mt-3 text-lg font-bold text-brand-navy">{title}</h3><p className="mt-1 text-sm font-medium text-brand-muted">{description}</p><Link className={buttonVariants({ size: "sm", className: "mt-4" })} href={actionHref}>{actionLabel}</Link></div></div>;
 }
 
 function ProjectStatus({ status }: { status: ProjectResponse["status"] }) {
-  const labels: Record<ProjectResponse["status"], string> = {
-    draft: "Bản nháp",
-    active: "Đang hoạt động",
-    completed: "Hoàn thành",
-    archived: "Đã lưu trữ"
-  };
+  const labels: Record<ProjectResponse["status"], string> = { draft: "Bản nháp", active: "Đang hoạt động", completed: "Hoàn thành", archived: "Đã lưu trữ" };
   const style = status === "completed" ? "bg-green-50 text-brand-green" : status === "active" ? "bg-blue-50 text-brand-blue" : status === "archived" ? "bg-slate-100 text-brand-muted" : "bg-amber-50 text-amber-700";
   return <span className={cn("rounded-full px-3 py-1 text-xs font-bold", style)}>{labels[status]}</span>;
 }
@@ -478,7 +371,6 @@ function buildSummary(data: PortalOverviewData | null) {
 
 function buildActivities(data: PortalOverviewData | null, projectNames: Map<string, string>): ActivityRow[] {
   if (!data) return [];
-
   const projectRows: ActivityRow[] = data.projects.map((project) => ({
     id: `project-${project.id}`,
     title: project.status === "completed" ? "Dự án đã hoàn thành" : project.status === "draft" ? "Dự án đang ở bản nháp" : "Dự án được cập nhật",
@@ -487,26 +379,17 @@ function buildActivities(data: PortalOverviewData | null, projectNames: Map<stri
     icon: project.status === "completed" ? CheckCircle2 : FolderOpen,
     tone: project.status === "completed" ? "green" : "blue"
   }));
-
   const analysisRows: ActivityRow[] = data.analyses.map((analysis) => analysisActivity(analysis, projectNames));
-
-  return [...projectRows, ...analysisRows]
-    .sort((a, b) => dateValue(b.at) - dateValue(a.at))
-    .slice(0, 6);
+  return [...projectRows, ...analysisRows].sort((a, b) => dateValue(b.at) - dateValue(a.at)).slice(0, 6);
 }
 
 function analysisActivity(analysis: AnalysisRunResponse, projectNames: Map<string, string>): ActivityRow {
   const projectName = analysis.project_id ? projectNames.get(analysis.project_id) : null;
-  const labels: Record<AnalysisRunResponse["status"], string> = {
-    queued: "Phân tích đang chờ",
-    running: "Phân tích đang chạy",
-    completed: "Phân tích đã hoàn thành",
-    failed: "Phân tích thất bại"
-  };
+  const labels: Record<AnalysisRunResponse["status"], string> = { queued: "Phân tích đang chờ", running: "Phân tích đang chạy", completed: "Phân tích đã hoàn thành", failed: "Phân tích thất bại" };
   return {
     id: `analysis-${analysis.id || analysis.created_at}`,
     title: labels[analysis.status],
-    detail: projectName || `${analysis.analysis_type} · ${analysis.engine_version}`,
+    detail: projectName || formatAnalysisType(analysis.analysis_type),
     at: analysis.updated_at,
     icon: analysis.status === "completed" ? FileBarChart : analysis.status === "failed" ? AlertTriangle : Gauge,
     tone: analysis.status === "completed" ? "green" : analysis.status === "failed" ? "red" : "blue"
@@ -514,36 +397,14 @@ function analysisActivity(analysis: AnalysisRunResponse, projectNames: Map<strin
 }
 
 function getNextStep(summary: OverviewSummary) {
-  if (summary.activeSites === 0 || summary.activeTariffs === 0 || summary.activeCatalog === 0) {
-    return {
-      icon: ServerCog,
-      description: "BESS Planner cần ít nhất một Site, một biểu giá và một BESS catalog đang hoạt động.",
-      href: "/customer-portal?section=data",
-      action: "Hoàn thiện cấu hình"
-    };
-  }
-  if (summary.runningAnalyses > 0) {
-    return {
-      icon: LoaderCircle,
-      description: `Có ${summary.runningAnalyses} analysis run đang chạy hoặc đang chờ xử lý.`,
-      href: "/customer-portal/du-an-cua-toi",
-      action: "Theo dõi dự án"
-    };
-  }
-  if (summary.completedAnalyses === 0) {
-    return {
-      icon: Sparkles,
-      description: "Tạo dự án, chọn file Load/PV và chạy Oracle. File đầu vào chỉ được xử lý tạm thời rồi tự xóa.",
-      href: "/customer-portal/du-an-cua-toi/tao-du-an",
-      action: "Tạo phân tích đầu tiên"
-    };
-  }
-  return {
-    icon: ShieldCheck,
-    description: "Workspace đang hoạt động tốt. Anh có thể mở kết quả gần nhất hoặc tạo thêm kịch bản phân tích.",
-    href: "/customer-portal/du-an-cua-toi",
-    action: "Mở danh sách dự án"
-  };
+  if (summary.activeSites === 0 || summary.activeTariffs === 0 || summary.activeCatalog === 0) return { icon: ServerCog, description: "BESS Planner cần ít nhất một địa điểm, một biểu giá điện và một cấu hình BESS đang hoạt động.", href: "/customer-portal?section=data", action: "Hoàn thiện cấu hình" };
+  if (summary.runningAnalyses > 0) return { icon: LoaderCircle, description: `Có ${summary.runningAnalyses} lần phân tích đang chạy hoặc đang chờ xử lý.`, href: "/customer-portal/du-an-cua-toi", action: "Theo dõi dự án" };
+  if (summary.completedAnalyses === 0) return { icon: Sparkles, description: "Tạo dự án, bổ sung dữ liệu phụ tải hoặc điện mặt trời và bắt đầu lần phân tích đầu tiên.", href: "/customer-portal/du-an-cua-toi/tao-du-an", action: "Tạo phân tích đầu tiên" };
+  return { icon: ShieldCheck, description: "Workspace đang hoạt động tốt. Anh có thể mở kết quả gần nhất hoặc tạo thêm kịch bản phân tích.", href: "/customer-portal/du-an-cua-toi", action: "Mở danh sách dự án" };
+}
+
+function formatAnalysisType(value: string) {
+  return value === "quick_sizing" ? "Quick Sizing" : value === "bess_planning" ? "BESS Planner" : "Phân tích năng lượng";
 }
 
 function dateValue(value: string) {

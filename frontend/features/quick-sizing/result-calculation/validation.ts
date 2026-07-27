@@ -38,6 +38,21 @@ export function validateAssumptions(assumptions: Step2Assumptions) {
   if (assumptions.waccPct < 0) {
     warnings.push(createWarning("INVALID_WACC", "WACC không được âm.", { field: "waccPct", blocking: true, severity: "error" }));
   }
+  if (assumptions.debtPct < 0 || assumptions.debtPct > 100) {
+    warnings.push(createWarning("INVALID_DEBT_RATIO", "Tỷ lệ vốn vay phải nằm trong khoảng 0-100%.", { field: "debtPct", blocking: true, severity: "error" }));
+  }
+  if (assumptions.interestPct < 0) {
+    warnings.push(createWarning("INVALID_INTEREST_RATE", "Lãi suất vay không được âm.", { field: "interestPct", blocking: true, severity: "error" }));
+  }
+  if (assumptions.loanTenorYears <= 0) {
+    warnings.push(createWarning("INVALID_LOAN_TENOR", "Thời hạn vay phải lớn hơn 0.", { field: "loanTenorYears", blocking: true, severity: "error" }));
+  }
+  if (assumptions.debtPct >= 100) {
+    warnings.push(createWarning("NO_EQUITY_BASE", "Tỷ lệ vốn vay 100% làm chi phí vốn chủ không xác định; hệ thống dùng WACC làm tỷ lệ chiết khấu vốn chủ dự phòng.", { field: "debtPct", severity: "warning" }));
+  }
+  if (assumptions.loanTenorYears > assumptions.analysisYears) {
+    warnings.push(createWarning("LOAN_BEYOND_ANALYSIS_HORIZON", "Thời hạn vay dài hơn thời hạn phân tích; phần dư nợ còn lại sẽ được tất toán ở năm cuối.", { field: "loanTenorYears", severity: "warning" }));
+  }
   if (assumptions.analysisYears <= 0) {
     warnings.push(createWarning("INVALID_ANALYSIS_YEARS", "Thời hạn phân tích phải lớn hơn 0.", { field: "analysisYears", blocking: true, severity: "error" }));
   }
@@ -90,7 +105,7 @@ export function validateAssumptions(assumptions: Step2Assumptions) {
     warnings.push(createWarning("COST_MODEL_PRELIMINARY", "Chi phi dang la uoc tinh so bo, chua phai bao gia nha cung cap.", { field: "costModelStatus", severity: "info" }));
   }
   if (assumptions.costModelSourceName === "frontend_fallback") {
-    warnings.push(createWarning("COST_MODEL_FALLBACK", "Cost model dang la fallback so bo tu frontend.", { field: "costCatalogVersion", severity: "info" }));
+    warnings.push(createWarning("COST_MODEL_FALLBACK", "Bộ đơn giá hiện là dữ liệu dự phòng sơ bộ.", { field: "costCatalogVersion", severity: "info" }));
   }
 
   return warnings;

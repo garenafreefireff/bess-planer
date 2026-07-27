@@ -64,6 +64,10 @@ const trustItems = [
   { icon: Trophy, title: "Kinh nghiệm thực tiễn", text: "Đội ngũ chuyên gia giàu kinh nghiệm trong nhiều dự án BESS." }
 ];
 
+const OFFICE_ADDRESS = "Louis IX/02 LK 29, Khu đô thị mới, Hoàng Mai, Hà Nội 100000, Việt Nam";
+const OFFICE_MAP_EMBED_URL = `https://maps.google.com/maps?q=${encodeURIComponent(OFFICE_ADDRESS)}&output=embed`;
+const OFFICE_MAP_LINK = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(OFFICE_ADDRESS)}`;
+
 export function ContactPage() {
   return (
     <>
@@ -215,8 +219,8 @@ function ContactInfo() {
       <div className="mt-4 grid grid-cols-[280px_1fr] gap-6 max-md:grid-cols-1">
         <div className="grid gap-3">
           <ContactInfoCard icon={Mail} title="Email" lines={["energyinsight@datainsight.vn", "Hỗ trợ trong vòng 24h làm việc"]} />
-          <ContactInfoCard icon={Phone} title="Hotline" lines={["(+84) 24 6685 7906", "Thứ 2 - Thứ 6: 08:30 – 17:30"]} />
-          <ContactInfoCard icon={MapPin} title="Văn phòng" lines={["Tòa nhà 3D, Duy Tân, Cầu Giấy,", "Hà Nội, Việt Nam", "Xem chỉ đường ↗"]} />
+          <ContactInfoCard icon={Phone} title="Hotline" lines={["0916848638", "Thứ 2 - Thứ 6: 08:30 – 17:30"]} />
+          <ContactInfoCard icon={MapPin} title="Văn phòng" lines={["Louis IX/02 LK 29, Khu đô thị mới,", "Hoàng Mai, Hà Nội 100000, Việt Nam", "Xem chỉ đường ↗"]} />
           <ContactInfoCard icon={Clock3} title="Giờ làm việc" lines={["Thứ 2 – Thứ 6: 08:30 – 17:30", "Nghỉ thứ 7, chủ nhật và ngày lễ"]} />
         </div>
         <MapPreview />
@@ -245,17 +249,22 @@ function ContactInfoCard({ icon: Icon, lines, title }: { icon: LucideIcon; lines
 
 function MapPreview() {
   return (
-    <div className="relative min-h-[290px] overflow-hidden rounded-lg border border-brand-line bg-[#eef5ef]">
-      <div className="absolute inset-0 opacity-80 [background-image:linear-gradient(35deg,transparent_0_42%,#d7e8d9_42%_47%,transparent_47%_100%),linear-gradient(115deg,transparent_0_48%,#d8e5f1_48%_53%,transparent_53%_100%),linear-gradient(0deg,transparent_0_49%,#e8d9d0_49%_51%,transparent_51%_100%)] [background-size:210px_120px,260px_160px,170px_110px]" />
-      <span className="absolute left-10 top-7 rounded bg-white/85 px-3 py-1 text-xs font-semibold text-brand-muted">Bảo tàng Dân tộc<br />Học Việt Nam</span>
-      <span className="absolute bottom-16 left-8 rounded bg-white/85 px-3 py-1 text-xs font-semibold text-brand-muted">Keangnam Hanoi<br />Landmark Tower</span>
-      <span className="absolute left-[45%] top-24 rotate-6 text-sm font-bold text-brand-blue">Duy Tân</span>
-      <span className="absolute left-[40%] top-10 rotate-[-82deg] text-xs font-bold text-brand-muted">Tôn Thất Thuyết</span>
-      <span className="absolute right-10 bottom-20 rounded bg-green-100 px-3 py-2 text-xs font-semibold text-brand-green">Công viên<br />Cầu Giấy</span>
-      <MapPin className="absolute left-[55%] top-[40%] -translate-x-1/2 -translate-y-1/2 fill-brand-blue text-brand-blue" size={42} />
-      <div className="absolute right-20 top-[33%] rounded-lg bg-white px-5 py-4 shadow-panel">
+    <div className="relative min-h-[290px] overflow-hidden rounded-lg border border-brand-line bg-slate-100">
+      <iframe
+        aria-label={`Bản đồ văn phòng DataInsight tại ${OFFICE_ADDRESS}`}
+        className="absolute inset-0 h-full w-full border-0"
+        loading="lazy"
+        referrerPolicy="no-referrer-when-downgrade"
+        src={OFFICE_MAP_EMBED_URL}
+        title="Minimap văn phòng DataInsight"
+      />
+      <div className="absolute bottom-4 left-4 right-4 rounded-lg bg-white/95 px-5 py-4 shadow-panel backdrop-blur">
         <strong className="block text-sm text-brand-navy">DataInsight JSC</strong>
-        <small className="mt-1 block text-xs font-semibold leading-5 text-brand-muted">Tòa nhà 3D, Duy Tân, Cầu Giấy,<br />Hà Nội, Việt Nam</small>
+        <small className="mt-1 block text-xs font-semibold leading-5 text-brand-muted">{OFFICE_ADDRESS}</small>
+        <a className="mt-3 inline-flex items-center gap-2 text-xs font-bold text-brand-blue" href={OFFICE_MAP_LINK} rel="noreferrer" target="_blank">
+          Mở Google Maps
+          <MapPin size={13} />
+        </a>
       </div>
     </div>
   );

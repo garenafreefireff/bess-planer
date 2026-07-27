@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query, status
 
-from app.dependencies.authentication import AdminUserDep
+from app.dependencies.authentication import AdminUserDep, CurrentUserDep
 from app.dependencies.common import PaginationDep
 from app.modules.leads.dependencies import LeadServiceDep
 from app.modules.leads.enums import LeadSource, LeadStatus
@@ -10,6 +10,7 @@ from app.modules.leads.schemas import (
     LeadAdminUpdateRequest,
     LeadCaptureResponse,
     LeadCreateRequest,
+    LeadQuickSizingConversionRequest,
     LeadResponse,
     QuickSizingLeadCreateRequest,
 )
@@ -38,6 +39,18 @@ async def create_quick_sizing_lead(
     lead_service: LeadServiceDep,
 ) -> LeadCaptureResponse:
     return await lead_service.capture_quick_sizing(payload)
+
+
+@router.post("/quick-sizing/conversion", response_model=LeadResponse)
+async def mark_quick_sizing_conversion(
+    payload: LeadQuickSizingConversionRequest,
+    current_user: CurrentUserDep,
+    lead_service: LeadServiceDep,
+) -> LeadResponse:
+    return await lead_service.mark_quick_sizing_conversion(
+        payload,
+        user_id=current_user.id,
+    )
 
 
 @admin_router.get("", response_model=PageResponse[LeadResponse])

@@ -1,8 +1,11 @@
-from fastapi import APIRouter, status
+from typing import Annotated
 
-from app.dependencies.authentication import CurrentUserDep
+from fastapi import APIRouter, Query, status
+
+from app.dependencies.authentication import AdminUserDep, CurrentUserDep
 from app.dependencies.common import PaginationDep
 from app.modules.projects.dependencies import ProjectServiceDep
+from app.modules.projects.enums import ProjectStatus, ProjectType
 from app.modules.projects.schemas import (
     ProjectCreateRequest,
     ProjectResponse,
@@ -13,6 +16,38 @@ from app.shared.schemas.pagination import PageResponse
 from app.shared.schemas.response import MessageResponse
 
 router = APIRouter()
+admin_router = APIRouter()
+
+
+@admin_router.get("", response_model=PageResponse[ProjectResponse])
+async def list_admin_projects(
+    admin_user: AdminUserDep,
+    pagination: PaginationDep,
+    project_service: ProjectServiceDep,
+    project_status: Annotated[ProjectStatus | None, Query(alias="status")] = None,
+    project_type: Annotated[ProjectType | None, Query(alias="type")] = None,
+    search: Annotated[str | None, Query(max_length=160)] = None,
+) -> PageResponse[ProjectResponse]:
+    del admin_user
+    return await project_service.list_admin(
+        page=pagination.page,
+        page_size=pagination.page_size,
+        skip=pagination.skip,
+        status=project_status,
+        project_type=project_type,
+        search=search,
+    )
+
+
+@admin_router.patch("/{project_id}", response_model=ProjectResponse)
+async def update_admin_project(
+    project_id: ObjectIdStr,
+    payload: ProjectUpdateRequest,
+    admin_user: AdminUserDep,
+    project_service: ProjectServiceDep,
+) -> ProjectResponse:
+    del admin_user
+    return await project_service.update_admin(project_id, payload)
 
 
 @router.post("", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)

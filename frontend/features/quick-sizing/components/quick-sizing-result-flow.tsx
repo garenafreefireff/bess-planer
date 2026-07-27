@@ -117,7 +117,7 @@ export function QuickSizingResultFlow() {
       <div className="mt-4 flex flex-wrap items-start justify-between gap-5">
         <div>
           <div className="flex flex-wrap items-center gap-3"><h1 className="text-[34px] font-bold text-brand-navy">Kết quả Quick Sizing</h1><span className="rounded-full bg-green-50 px-3 py-1 text-sm font-bold text-brand-green">Đã tính xong</span></div>
-          <p className="mt-2 max-w-[820px] text-sm font-medium leading-6 text-brand-muted">Kết quả được tính từ bộ giả định Bước 2 bằng result engine độc lập: candidate grid, dispatch không double count, FCFF, NPV, IRR, payback, Pareto và confidence.</p>
+          <p className="mt-2 max-w-[920px] text-sm font-medium leading-6 text-brand-muted">Kết quả được xây dựng từ bộ giả định Bước 2, so sánh nhiều cấu hình theo hiệu quả kỹ thuật, chi phí đầu tư, dòng tiền, khả năng trả nợ và độ tin cậy.</p>
         </div>
         <div className="flex flex-wrap gap-2"><Link className={buttonVariants({ variant: "secondary", className: "h-10" })} href="/quick-sizing/gia-dinh">Chỉnh sửa giả định</Link>{reportUnlocked ? <><button className={buttonVariants({ variant: "secondary", className: "h-10" })} onClick={saveResult} type="button"><Bookmark size={16} />Lưu kết quả</button><button className={buttonVariants({ variant: "secondary", className: "h-10" })} onClick={() => void shareResult()} type="button"><Share2 size={16} />Chia sẻ</button></> : null}</div>
       </div>
@@ -148,6 +148,7 @@ export function QuickSizingResultFlow() {
             candidate={selected}
             onUnlocked={(code) => {
               window.localStorage.setItem(`energyinsight.quickSizing.unlocked.${reportFingerprint}`, code);
+              window.localStorage.setItem("energyinsight.quickSizing.latestResultCode", code);
               setResultCode(code);
               setReportUnlocked(true);
             }}
@@ -158,7 +159,7 @@ export function QuickSizingResultFlow() {
         )
       ) : (
         <Card className="mt-4 rounded-xl bg-white p-5 shadow-panel">
-          <h2 className="text-xl font-bold text-brand-navy">Không có candidate hợp lệ</h2>
+          <h2 className="text-xl font-bold text-brand-navy">Không có phương án hợp lệ</h2>
           <WarningsPanel warnings={result.warnings} />
         </Card>
       )}
@@ -182,7 +183,7 @@ function ContextBar({ analysisRun, scenario, result, basicInfo }: { analysisRun:
     ["Thời hạn", `${result.analysisYears} năm`],
     ["Biểu giá", `${basicInfo?.industry || "Sản xuất"} - ${basicInfo?.voltageLevel || "chưa xác định"}`],
     ["Mục tiêu", basicInfo?.bessObjectives.map((item) => objectiveLabels[item] ?? item).join(", ") || "Chưa xác định"],
-    ["Engine", `${analysisRun?.engine_version ?? "Step 2"} + ${result.configVersions.resultEngine}`]
+    ["Loại kết quả", analysisRun?.id ? "Kết quả đã ghi nhận" : "Ước tính sơ bộ"]
   ];
   return <Card className="mt-4 rounded-xl bg-white p-3 shadow-panel"><div className="flex flex-wrap gap-2">{items.map(([label, value]) => <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-bold text-brand-navy" key={label}><span className="text-brand-muted">{label}: </span>{value}</span>)}</div></Card>;
 }
@@ -209,14 +210,14 @@ function UnifiedResultDashboard({
       <div className="mt-4 flex gap-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-medium leading-6 text-brand-blue">
         <Info className="mt-0.5 shrink-0" size={20} />
         <div>
-          <strong className="block text-brand-navy">Dashboard kết quả tổng hợp</strong>
-          <span>{formatNumber(result.candidates.length, 0)} candidate hợp lệ được tính FCFF, Pareto và recommendation score. Ba card bên dưới là đại diện, không phải toàn bộ tập candidate.</span>
+          <strong className="block text-brand-navy">Tổng hợp kết quả</strong>
+          <span>{formatNumber(result.candidates.length, 0)} phương án hợp lệ đã được đánh giá theo kỹ thuật, dòng tiền và hiệu quả tài chính. Ba thẻ bên dưới là các phương án đại diện.</span>
         </div>
       </div>
 
       <div className="mt-5 grid grid-cols-[minmax(0,1fr)_360px] items-start gap-5 max-xl:grid-cols-1">
         <div className="grid min-w-0 gap-5">
-          <Section title="1. Chọn phương án sizing">
+          <Section title="1. Chọn phương án">
             <div className="grid grid-cols-3 gap-4 max-lg:grid-cols-1">
               {options.map((option) => (
                 <OptionCard
@@ -229,19 +230,22 @@ function UnifiedResultDashboard({
             </div>
           </Section>
 
-          <Section title="2. KPI phương án đang chọn">
+          <Section title="2. Chỉ số phương án đang chọn">
             <KpiGrid candidate={selected} analysisYears={result.analysisYears} />
           </Section>
 
           <CashFlowChart candidate={selected} />
+          <DebtScheduleTable candidate={selected} />
           <ParetoChart onSelect={onSelectCandidate} points={result.paretoPoints} selectedId={selected.id} />
           <ComparisonTable options={options} selectedId={selected.id} analysisYears={result.analysisYears} />
         </div>
 
         <aside className="grid gap-5">
           <RecommendationPanel candidate={selected} effectiveWaccPct={effectiveWaccPct} recommendedId={result.recommendedOption?.id ?? null} />
+          <FinancingRecommendationPanel candidate={selected} recommended={result.financingRecommendedOption} />
           <DemandChargeResultPanel assumptions={assumptions} candidate={selected} />
           <CapexBreakdownPanel candidate={selected} />
+          <FinancingPanel assumptions={assumptions} candidate={selected} />
           <ScenarioRangePanel result={result} />
           <ConfidencePanel result={result} />
           <WarningsPanel warnings={result.warnings} />
@@ -257,20 +261,56 @@ function RecommendationPanel({ candidate, effectiveWaccPct, recommendedId }: { c
   const hasFinancialRecommendation = recommendedId !== null;
   return (
     <Card className="rounded-xl border-blue-100 bg-blue-50 p-5 shadow-panel">
-      <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-brand-blue">{isRecommended ? "Phương án khuyến nghị" : "Candidate đang chọn"}</span>
+      <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-brand-blue">{isRecommended ? "Phương án khuyến nghị" : "Phương án đang chọn"}</span>
       <h2 className="mt-3 text-xl font-bold text-brand-navy">{formatNumber(candidate.powerKw, 0)} kW / {formatNumber(candidate.energyKwh, 0)} kWh</h2>
       <p className="mt-2 text-sm font-medium leading-6 text-brand-muted">
         {hasFinancialRecommendation
-          ? `CAPEX ${formatVnd(candidate.capex.totalCapexVnd)}, tiết kiệm vận hành ròng năm đầu ${formatVnd(candidate.netOperatingSavingYear1Vnd)}, payback ${formatPayback(candidate.paybackYears)} và IRR ${formatPercent(candidate.irrPct)}.`
-          : "Chưa có phương án đạt tiêu chí tài chính. Candidate đang chọn chỉ là phương án tham khảo để xem chi phí, coverage và dòng tiền."}
+          ? `CAPEX ${formatVnd(candidate.capex.totalCapexVnd)}, IRR dự án ${formatPercent(candidate.irrPct)}, IRR vốn chủ ${formatPercent(candidate.equityIrrPct)}, hoàn vốn vốn chủ ${formatPayback(candidate.equityPaybackYears)} và DSCR thấp nhất ${candidate.minimumDscr === null ? "N/A" : `${formatNumber(candidate.minimumDscr, 2)}x`}.`
+          : "Chưa có phương án đạt đầy đủ tiêu chí tài chính. Phương án đang chọn chỉ dùng để tham khảo chi phí, mức đáp ứng kỹ thuật và dòng tiền."}
       </p>
       <div className="mt-4 grid gap-2">
-        {candidate.meetsPeakReductionTarget !== null ? <Criterion ok={candidate.meetsPeakReductionTarget === true}>Đạt coverage peak {formatPercent(candidate.technicalCoveragePct)}</Criterion> : null}
-        <Criterion ok={candidate.npvVnd > 0}>NPV dương</Criterion>
-        <Criterion ok={candidate.irrPct !== null && candidate.irrPct >= effectiveWaccPct}>IRR ≥ WACC {formatPercent(effectiveWaccPct)}</Criterion>
-        <Criterion ok={candidate.paybackYears !== null && candidate.paybackYears <= candidate.yearlyResults.length - 1}>Payback trong horizon</Criterion>
+        {candidate.meetsPeakReductionTarget !== null ? <Criterion ok={candidate.meetsPeakReductionTarget === true}>Đạt mục tiêu cắt đỉnh {formatPercent(candidate.technicalCoveragePct)}</Criterion> : null}
+        <Criterion ok={candidate.npvVnd > 0}>NPV dự án dương</Criterion>
+        <Criterion ok={candidate.irrPct !== null && candidate.irrPct >= effectiveWaccPct}>IRR dự án ≥ WACC {formatPercent(effectiveWaccPct)}</Criterion>
+        <Criterion ok={candidate.equityNpvVnd > 0}>NPV vốn chủ dương</Criterion>
+        <Criterion ok={candidate.minimumDscr === null || candidate.minimumDscr >= 1}>DSCR ≥ 1,0x</Criterion>
+        <Criterion ok={candidate.paybackYears !== null && candidate.paybackYears <= candidate.yearlyResults.length - 1}>Hoàn vốn dự án trong thời hạn phân tích</Criterion>
         <Criterion ok={candidate.budgetEvaluation.status !== "materially_over"}>{formatBudgetStatus(candidate.budgetEvaluation.status)}</Criterion>
       </div>
+    </Card>
+  );
+}
+
+function FinancingRecommendationPanel({
+  candidate,
+  recommended
+}: {
+  candidate: SizingCandidateResult;
+  recommended: QuickSizingResult["financingRecommendedOption"];
+}) {
+  const selectedIsRecommended = recommended?.id === candidate.id;
+  const debtServiceOk = candidate.minimumDscr === null || candidate.minimumDscr >= 1;
+  return (
+    <Card className="rounded-xl border-green-100 bg-green-50/55 p-5 shadow-panel">
+      <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-brand-green">Khả năng tài trợ vốn</span>
+      <h2 className="mt-3 text-lg font-bold text-brand-navy">
+        {recommended
+          ? selectedIsRecommended
+            ? "Phương án đang chọn đạt tiêu chí tài trợ"
+            : `Khuyến nghị ${formatNumber(recommended.powerKw, 0)} kW / ${formatNumber(recommended.energyKwh, 0)} kWh`
+          : "Chưa có phương án đạt tiêu chí vốn chủ và trả nợ"}
+      </h2>
+      <div className="mt-4 grid gap-2">
+        <Criterion ok={candidate.equityNpvVnd > 0}>NPV vốn chủ dương</Criterion>
+        <Criterion ok={candidate.equityIrrPct !== null && candidate.equityIrrPct >= candidate.costOfEquityPct}>IRR vốn chủ ≥ chi phí vốn chủ {formatPercent(candidate.costOfEquityPct)}</Criterion>
+        <Criterion ok={candidate.equityPaybackYears !== null && candidate.equityPaybackYears <= candidate.yearlyResults.length - 1}>Hoàn vốn vốn chủ trong thời hạn phân tích</Criterion>
+        <Criterion ok={debtServiceOk}>DSCR ≥ 1,0x</Criterion>
+      </div>
+      {recommended && !selectedIsRecommended ? (
+        <p className="mt-3 rounded-lg bg-white px-3 py-2 text-xs font-semibold leading-5 text-brand-muted">
+          Phương án tài trợ tốt nhất có NPV vốn chủ {formatVnd(recommended.equityNpvVnd)}, IRR vốn chủ {formatPercent(recommended.equityIrrPct)} và DSCR thấp nhất {recommended.minimumDscr === null ? "N/A" : `${formatNumber(recommended.minimumDscr, 2)}x`}.
+        </p>
+      ) : null}
     </Card>
   );
 }
@@ -281,12 +321,12 @@ function DemandChargeResultPanel({ assumptions, candidate }: { assumptions: Quic
   const demandSavingVnd = year1?.demandSavingVnd ?? 0;
   const potentialDemandSavingVnd = year1?.potentialDemandSavingVnd ?? 0;
   const rows: Array<[string, string]> = [
-    ["Applicability", formatDemandApplicability(assumptions.demandChargeApplicability)],
-    ["Effective value", `${formatVnd(assumptions.effectiveDemandChargeVndPerKwMonth)}/kW/tháng`],
-    ["Source", formatDemandSource(assumptions.demandChargeSource)],
-    ["Status", assumptions.demandChargeStatus],
-    ["Voltage band", formatDemandVoltageBand(assumptions.detailedVoltageBand)],
-    ["Included in NPV", assumptions.demandSavingIncludedInBaseNpv ? "Có" : "Không"]
+    ["Phạm vi áp dụng", formatDemandApplicability(assumptions.demandChargeApplicability)],
+    ["Giá trị áp dụng", `${formatVnd(assumptions.effectiveDemandChargeVndPerKwMonth)}/kW/tháng`],
+    ["Nguồn dữ liệu", formatDemandSource(assumptions.demandChargeSource)],
+    ["Trạng thái", formatDemandChargeStatusLabel(assumptions.demandChargeStatus)],
+    ["Dải điện áp", formatDemandVoltageBand(assumptions.detailedVoltageBand)],
+    ["Đã tính vào NPV", assumptions.demandSavingIncludedInBaseNpv ? "Có" : "Không"]
   ];
 
   return (
@@ -303,12 +343,54 @@ function DemandChargeResultPanel({ assumptions, candidate }: { assumptions: Quic
         ))}
       </div>
       <div className="mt-3 rounded-lg bg-blue-50 px-3 py-2 text-xs font-semibold leading-5 text-brand-muted">
-        <strong className="text-brand-navy">DemandSaving:</strong> {formatNumber(reducedPeakKw, 1)} kW x {formatVnd(assumptions.effectiveDemandChargeVndPerKwMonth)}/kW/tháng x 12 = {formatVnd(demandSavingVnd)}/năm.
+        <strong className="text-brand-navy">Lợi ích giảm phí công suất:</strong> {formatNumber(reducedPeakKw, 1)} kW x {formatVnd(assumptions.effectiveDemandChargeVndPerKwMonth)}/kW/tháng x 12 = {formatVnd(demandSavingVnd)}/năm.
       </div>
       {demandSavingVnd <= 0 ? (
         <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold leading-5 text-amber-800">
           Chưa ghi nhận lợi ích phí công suất.
-          {potentialDemandSavingVnd > 0 ? ` Potential tham chiếu chưa cộng vào NPV cơ sở: ${formatVnd(potentialDemandSavingVnd)}/năm.` : ""}
+          {potentialDemandSavingVnd > 0 ? ` Mức tham chiếu chưa cộng vào NPV cơ sở: ${formatVnd(potentialDemandSavingVnd)}/năm.` : ""}
+        </div>
+      ) : null}
+    </Section>
+  );
+}
+
+function FinancingPanel({ assumptions, candidate }: { assumptions: QuickSizingAssumptions; candidate: SizingCandidateResult }) {
+  const debtYears = candidate.yearlyResults.filter((row) => row.debtServiceVnd > 0);
+  const firstDebtYear = debtYears[0] ?? null;
+  const rows: Array<[string, string]> = [
+    ["Tỷ lệ vốn vay", `${formatNumber(assumptions.debtPct, 1)}%`],
+    ["Khoản vay", formatVnd(candidate.debtAmountVnd)],
+    ["Vốn chủ ban đầu", formatVnd(candidate.equityInvestmentVnd)],
+    ["Lãi suất vay", `${formatNumber(assumptions.interestPct, 1)}%/năm`],
+    ["Thời hạn vay", `${formatNumber(assumptions.loanTenorYears, 0)} năm`],
+    ["Tổng lãi vay", formatVnd(candidate.totalInterestVnd)],
+    ["Chi phí vốn chủ", `${formatNumber(candidate.costOfEquityPct, 1)}%`],
+    ["NPV vốn chủ", formatVnd(candidate.equityNpvVnd)],
+    ["IRR vốn chủ", formatPercent(candidate.equityIrrPct)],
+    ["Hoàn vốn vốn chủ", formatPayback(candidate.equityPaybackYears)],
+    ["DSCR thấp nhất", candidate.minimumDscr === null ? "Không có dư nợ" : `${formatNumber(candidate.minimumDscr, 2)}x`],
+    ["DSCR trung bình", candidate.averageDscr === null ? "Không có dư nợ" : `${formatNumber(candidate.averageDscr, 2)}x`]
+  ];
+
+  return (
+    <Section title="Cấu trúc tài trợ vốn">
+      <div className="grid gap-2">
+        {rows.map(([label, value]) => (
+          <div className="flex items-center justify-between gap-4 rounded-lg bg-slate-50 px-3 py-2 text-sm" key={label}>
+            <span className="font-semibold text-brand-muted">{label}</span>
+            <strong className="text-right text-brand-navy">{value}</strong>
+          </div>
+        ))}
+      </div>
+      {firstDebtYear ? (
+        <div className="mt-3 rounded-lg bg-blue-50 px-3 py-2 text-xs font-semibold leading-5 text-brand-muted">
+          Mô hình trả gốc đều: năm 1 trả gốc {formatVnd(firstDebtYear.principalRepaymentVnd)}, lãi {formatVnd(firstDebtYear.interestExpenseVnd)}, tổng nghĩa vụ nợ {formatVnd(firstDebtYear.debtServiceVnd)}.
+        </div>
+      ) : null}
+      {candidate.minimumDscr !== null && candidate.minimumDscr < 1 ? (
+        <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold leading-5 text-red-700">
+          DSCR dưới 1,0x: dòng tiền dự án không đủ trả nợ tại ít nhất một năm.
         </div>
       ) : null}
     </Section>
@@ -346,7 +428,7 @@ function CapexBreakdownPanel({ candidate }: { candidate: SizingCandidateResult }
         ))}
       </div>
       <div className="mt-3 rounded-lg bg-blue-50 px-3 py-2 text-xs font-semibold leading-5 text-brand-muted">
-        <strong className="text-brand-navy">Catalog:</strong> {capex.costCatalogVersion} ({capex.costModelStatus}, {capex.costModelSourceName})
+        <strong className="text-brand-navy">Bộ đơn giá:</strong> {capex.costCatalogVersion} · {formatCostModelStatusLabel(capex.costModelStatus)}
       </div>
       <div className="mt-3 grid gap-2 text-xs font-semibold leading-5 text-brand-muted">
         <UnitCostLine title="Pin DC" source={capex.batteryUnitCost.source} unit={capex.batteryUnitCost.unit} value={capex.batteryUnitCost.value} />
@@ -363,22 +445,22 @@ function UnitCostLine({ source, title, unit, value }: { source: string; title: s
   return (
     <div className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2">
       <span>{title}: {new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(value)} {unit}</span>
-      <strong className="text-brand-navy">{source === "user_input" ? "User input" : source === "frontend_fallback" ? "Fallback frontend" : `Backend catalog (${source})`}</strong>
+      <strong className="text-brand-navy">{source === "user_input" ? "Giá trị người dùng nhập" : source === "frontend_fallback" ? "Giá trị dự phòng" : "Dữ liệu tham chiếu"}</strong>
     </div>
   );
 }
 
 function OptionCard({ option, selected, onSelect }: { option: SizingOptionResult; selected: boolean; onSelect: () => void }) {
-  return <button className={cn("rounded-xl border bg-white p-4 text-left transition hover:border-brand-blue hover:bg-blue-50/40", selected && "border-brand-blue bg-blue-50 shadow-[0_0_0_1px_rgba(7,91,234,0.14)]")} onClick={onSelect} type="button"><span className={cn("rounded-full px-3 py-1 text-xs font-bold", selected ? "bg-brand-blue text-white" : "bg-slate-100 text-brand-muted")}>{option.badge}</span><h3 className="mt-3 text-base font-bold text-brand-navy">{option.title}</h3><div className="mt-3 grid grid-cols-2 gap-2"><Metric label="Công suất" value={`${formatNumber(option.powerKw, 0)} kW`} /><Metric label="Dung lượng" value={`${formatNumber(option.energyKwh, 0)} kWh`} /><Metric label="CAPEX" value={formatVnd(option.capex.totalCapexVnd)} /><Metric label="Payback" value={formatPayback(option.paybackYears)} /></div></button>;
+  return <button className={cn("rounded-xl border bg-white p-4 text-left transition hover:border-brand-blue hover:bg-blue-50/40", selected && "border-brand-blue bg-blue-50 shadow-[0_0_0_1px_rgba(7,91,234,0.14)]")} onClick={onSelect} type="button"><span className={cn("rounded-full px-3 py-1 text-xs font-bold", selected ? "bg-brand-blue text-white" : "bg-slate-100 text-brand-muted")}>{option.badge}</span><h3 className="mt-3 text-base font-bold text-brand-navy">{option.title}</h3><div className="mt-3 grid grid-cols-2 gap-2"><Metric label="Công suất" value={`${formatNumber(option.powerKw, 0)} kW`} /><Metric label="Dung lượng" value={`${formatNumber(option.energyKwh, 0)} kWh`} /><Metric label="CAPEX" value={formatVnd(option.capex.totalCapexVnd)} /><Metric label="Hoàn vốn dự án" value={formatPayback(option.paybackYears)} /></div></button>;
 }
 
 function KpiGrid({ analysisYears, candidate, compact = false }: { analysisYears: number; candidate: SizingCandidateResult; compact?: boolean }) {
   const peakCards: Array<[string, string, string, LucideIcon]> = candidate.designObjective === "peak_shaving"
     ? [
-      ["Cửa sổ peak", formatNumber(candidate.designPeakEventDurationHours ?? 0, 2), "giờ thiết kế", Clock3],
-      ["AC khả dụng/event", formatNumber(candidate.usableAcEnergyPerEventKwh ?? 0, 0), "kWh", BatteryCharging],
-      ["Giảm peak hiệu dụng", formatNumber(candidate.effectivePeakReductionKw ?? 0, 0), "kW", Target],
-      ["Duration tại peak", formatNumber(candidate.deliverableDurationAtReducedPeakHours ?? 0, 2), "giờ", Clock3]
+      ["Thời gian cắt đỉnh", formatNumber(candidate.designPeakEventDurationHours ?? 0, 2), "giờ thiết kế", Clock3],
+      ["Năng lượng AC khả dụng", formatNumber(candidate.usableAcEnergyPerEventKwh ?? 0, 0), "kWh/lần", BatteryCharging],
+      ["Công suất giảm đỉnh", formatNumber(candidate.effectivePeakReductionKw ?? 0, 0), "kW", Target],
+      ["Thời lượng tại mức giảm đỉnh", formatNumber(candidate.deliverableDurationAtReducedPeakHours ?? 0, 2), "giờ", Clock3]
     ]
     : [];
   const cards: Array<[string, string, string, LucideIcon]> = [
@@ -388,24 +470,99 @@ function KpiGrid({ analysisYears, candidate, compact = false }: { analysisYears:
     ...peakCards,
     ["CAPEX", formatVnd(candidate.capex.totalCapexVnd), "", Wallet],
     ["Tiết kiệm ròng", formatVnd(candidate.netOperatingSavingYear1Vnd), "/năm", LineChart],
-    ["Payback", formatPayback(candidate.paybackYears), "", Clock3],
-    [`NPV ${analysisYears} năm`, formatVnd(candidate.npvVnd), "", Target],
-    ["IRR", formatPercent(candidate.irrPct), "", Sparkles]
+    ["Hoàn vốn dự án", formatPayback(candidate.paybackYears), "", Clock3],
+    [`NPV dự án ${analysisYears} năm`, formatVnd(candidate.npvVnd), "", Target],
+    ["IRR dự án", formatPercent(candidate.irrPct), "", Sparkles],
+    ["Vốn chủ ban đầu", formatVnd(candidate.equityInvestmentVnd), "", Wallet],
+    [`NPV vốn chủ ${analysisYears} năm`, formatVnd(candidate.equityNpvVnd), "", Target],
+    ["IRR vốn chủ", formatPercent(candidate.equityIrrPct), "", Sparkles],
+    ["Hoàn vốn vốn chủ", formatPayback(candidate.equityPaybackYears), "", Clock3],
+    ["DSCR thấp nhất", candidate.minimumDscr === null ? "N/A" : `${formatNumber(candidate.minimumDscr, 2)}x`, "", ShieldAlert]
   ];
   return <div className={cn("grid gap-3", compact ? "grid-cols-2" : "grid-cols-4 max-xl:grid-cols-2 max-sm:grid-cols-1")}>{cards.map(([label, value, unit, Icon]) => <Card className="grid min-h-[90px] grid-cols-[40px_1fr] items-center gap-3 rounded-xl p-3 shadow-none" key={label}><span className="grid size-9 place-items-center rounded-lg bg-blue-50 text-brand-blue"><Icon size={20} /></span><span><small className="block text-xs font-bold text-brand-muted">{label}</small><strong className="mt-1 block text-xl font-bold text-brand-navy">{value} {unit ? <span className="text-sm">{unit}</span> : null}</strong></span></Card>)}</div>;
 }
 
+function DebtScheduleTable({ candidate }: { candidate: SizingCandidateResult }) {
+  const rows = candidate.yearlyResults.filter((row) => row.year > 0 && (row.openingDebtVnd > 0 || row.debtServiceVnd > 0));
+  if (rows.length === 0) {
+    return <Section title="Lịch trả nợ"><p className="text-sm font-medium text-brand-muted">Phương án không sử dụng vốn vay.</p></Section>;
+  }
+
+  return (
+    <Section title="Lịch trả nợ & dòng tiền vốn chủ">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[980px] border-collapse text-xs">
+          <thead>
+            <tr className="bg-blue-50 text-brand-navy">
+              <th className="px-3 py-2 text-left">Năm</th>
+              <th className="px-3 py-2 text-right">Dư nợ đầu kỳ</th>
+              <th className="px-3 py-2 text-right">Gốc định kỳ</th>
+              <th className="px-3 py-2 text-right">Tất toán cuối kỳ</th>
+              <th className="px-3 py-2 text-right">Lãi vay</th>
+              <th className="px-3 py-2 text-right">Nghĩa vụ nợ</th>
+              <th className="px-3 py-2 text-right">Dư nợ cuối kỳ</th>
+              <th className="px-3 py-2 text-right">Dòng tiền trả nợ (CFADS)</th>
+              <th className="px-3 py-2 text-right">DSCR</th>
+              <th className="px-3 py-2 text-right">Dòng tiền vốn chủ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr className="border-t border-brand-line" key={row.year}>
+                <td className="px-3 py-2 font-bold text-brand-navy">{row.year}</td>
+                <td className="px-3 py-2 text-right text-brand-muted">{formatVnd(row.openingDebtVnd)}</td>
+                <td className="px-3 py-2 text-right text-brand-muted">{formatVnd(row.scheduledPrincipalRepaymentVnd)}</td>
+                <td className={cn("px-3 py-2 text-right", row.balloonRepaymentVnd > 0 ? "font-bold text-amber-700" : "text-brand-muted")}>{formatVnd(row.balloonRepaymentVnd)}</td>
+                <td className="px-3 py-2 text-right text-brand-muted">{formatVnd(row.interestExpenseVnd)}</td>
+                <td className="px-3 py-2 text-right font-semibold text-brand-navy">{formatVnd(row.debtServiceVnd)}</td>
+                <td className="px-3 py-2 text-right text-brand-muted">{formatVnd(row.closingDebtVnd)}</td>
+                <td className="px-3 py-2 text-right text-brand-muted">{formatVnd(row.cfadsVnd)}</td>
+                <td className={cn("px-3 py-2 text-right font-bold", row.dscr !== null && row.dscr < 1 ? "text-red-600" : "text-brand-green")}>{row.dscr === null ? "—" : `${formatNumber(row.dscr, 2)}x`}</td>
+                <td className={cn("px-3 py-2 text-right font-semibold", row.equityCashFlowVnd < 0 ? "text-red-600" : "text-brand-green")}>{formatVnd(row.equityCashFlowVnd)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Section>
+  );
+}
+
 function CashFlowChart({ candidate }: { candidate: SizingCandidateResult }) {
-  const values = candidate.yearlyResults.map((row) => row.cumulativeCashFlowVnd);
-  const min = Math.min(...values, 0);
-  const max = Math.max(...values, 1);
+  const projectValues = candidate.yearlyResults.map((row) => row.cumulativeCashFlowVnd);
+  const equityValues = candidate.yearlyResults.map((row) => row.cumulativeEquityCashFlowVnd);
+  const allValues = [...projectValues, ...equityValues];
+  const min = Math.min(...allValues, 0);
+  const max = Math.max(...allValues, 1);
   const width = 820;
   const height = 330;
-  const x = (index: number) => 58 + index * ((width - 110) / Math.max(1, values.length - 1));
+  const x = (index: number) => 58 + index * ((width - 110) / Math.max(1, projectValues.length - 1));
   const y = (value: number) => 270 - ((value - min) / Math.max(1, max - min)) * 210;
-  const path = values.map((value, index) => `${index === 0 ? "M" : "L"} ${x(index)} ${y(value)}`).join(" ");
-  const breakEvenIndex = values.findIndex((value) => value >= 0);
-  return <Section title="Dòng tiền tích lũy"><div className="h-[360px] overflow-x-auto"><svg className="h-full min-w-[760px] w-full" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Biểu đồ dòng tiền tích lũy">{[60, 110, 160, 215, 270].map((lineY) => <line key={lineY} x1="52" x2="780" y1={lineY} y2={lineY} stroke="#DBE6F6" strokeDasharray="5 7" />)}<path d={path} fill="none" stroke="#075BEA" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />{values.map((value, index) => <circle key={index} cx={x(index)} cy={y(value)} r="5" fill="#075BEA" stroke="#fff" strokeWidth="2" />)}{breakEvenIndex > 0 ? <><line x1={x(breakEvenIndex)} x2={x(breakEvenIndex)} y1="55" y2="270" stroke="#08A64A" strokeDasharray="6 6" strokeWidth="2" /><text x={x(breakEvenIndex)} y="42" textAnchor="middle" fill="#0CA34B" fontSize="12" fontWeight="700">Hòa vốn khoảng năm {breakEvenIndex}</text></> : null}{values.map((_, index) => <text key={index} x={x(index)} y="305" textAnchor="middle" fill="#627194" fontSize="11">Năm {index}</text>)}</svg></div></Section>;
+  const projectPath = projectValues.map((value, index) => `${index === 0 ? "M" : "L"} ${x(index)} ${y(value)}`).join(" ");
+  const equityPath = equityValues.map((value, index) => `${index === 0 ? "M" : "L"} ${x(index)} ${y(value)}`).join(" ");
+  const projectBreakEvenIndex = projectValues.findIndex((value) => value >= 0);
+  const equityBreakEvenIndex = equityValues.findIndex((value) => value >= 0);
+
+  return (
+    <Section title="Dòng tiền tích lũy dự án & vốn chủ">
+      <div className="mb-2 flex flex-wrap gap-4 text-xs font-bold text-brand-muted">
+        <span className="inline-flex items-center gap-2"><span className="h-1 w-7 rounded bg-brand-blue" />Dòng tiền dự án</span>
+        <span className="inline-flex items-center gap-2"><span className="h-1 w-7 rounded bg-brand-green" />Dòng tiền vốn chủ</span>
+      </div>
+      <div className="h-[360px] overflow-x-auto">
+        <svg className="h-full min-w-[760px] w-full" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Biểu đồ dòng tiền tích lũy dự án và vốn chủ">
+          {[60, 110, 160, 215, 270].map((lineY) => <line key={lineY} x1="52" x2="780" y1={lineY} y2={lineY} stroke="#DBE6F6" strokeDasharray="5 7" />)}
+          <path d={projectPath} fill="none" stroke="#075BEA" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+          <path d={equityPath} fill="none" stroke="#08A64A" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+          {projectValues.map((value, index) => <circle key={`project-${index}`} cx={x(index)} cy={y(value)} r="4" fill="#075BEA" stroke="#fff" strokeWidth="2" />)}
+          {equityValues.map((value, index) => <circle key={`equity-${index}`} cx={x(index)} cy={y(value)} r="4" fill="#08A64A" stroke="#fff" strokeWidth="2" />)}
+          {projectBreakEvenIndex > 0 ? <text x={x(projectBreakEvenIndex)} y="42" textAnchor="middle" fill="#075BEA" fontSize="11" fontWeight="700">Dự án hòa vốn năm {projectBreakEvenIndex}</text> : null}
+          {equityBreakEvenIndex > 0 ? <text x={x(equityBreakEvenIndex)} y="58" textAnchor="middle" fill="#08A64A" fontSize="11" fontWeight="700">Vốn chủ hòa vốn năm {equityBreakEvenIndex}</text> : null}
+          {projectValues.map((_, index) => <text key={`year-${index}`} x={x(index)} y="305" textAnchor="middle" fill="#627194" fontSize="11">Năm {index}</text>)}
+        </svg>
+      </div>
+    </Section>
+  );
 }
 
 function ParetoChart({ onSelect, points, selectedId }: { onSelect: (candidateId: string) => void; points: ParetoPoint[]; selectedId: string }) {
@@ -428,9 +585,13 @@ function ScenarioRangePanel({ result }: { result: QuickSizingResult }) {
   return (
     <Section title="Khoảng kết quả dự kiến">
       <RangeRow label="Tiết kiệm ròng" range={result.scenarioRanges.netOperatingSavingYear1Vnd} formatter={(value) => `${formatVnd(value)}/năm`} />
-      <RangeRow label="Payback" range={result.scenarioRanges.paybackYears} emptyText="Chưa hoàn vốn" formatter={(value) => formatPayback(value, result.analysisYears)} />
-      <RangeRow label={`NPV ${result.analysisYears} năm`} range={result.scenarioRanges.npvVnd} formatter={formatVnd} />
-      <RangeRow label="IRR" range={result.scenarioRanges.irrPct} formatter={(value) => `${formatNumber(value, 1)}%`} />
+      <RangeRow label="Hoàn vốn dự án" range={result.scenarioRanges.paybackYears} emptyText="Chưa hoàn vốn" formatter={(value) => formatPayback(value, result.analysisYears)} />
+      <RangeRow label={`NPV dự án ${result.analysisYears} năm`} range={result.scenarioRanges.npvVnd} formatter={formatVnd} />
+      <RangeRow label="IRR dự án" range={result.scenarioRanges.irrPct} formatter={(value) => `${formatNumber(value, 1)}%`} />
+      <RangeRow label="Hoàn vốn vốn chủ" range={result.scenarioRanges.equityPaybackYears} emptyText="Chưa hoàn vốn" formatter={(value) => formatPayback(value, result.analysisYears)} />
+      <RangeRow label={`NPV vốn chủ ${result.analysisYears} năm`} range={result.scenarioRanges.equityNpvVnd} formatter={formatVnd} />
+      <RangeRow label="IRR vốn chủ" range={result.scenarioRanges.equityIrrPct} formatter={(value) => `${formatNumber(value, 1)}%`} />
+      <RangeRow label="DSCR thấp nhất" range={result.scenarioRanges.minimumDscr} emptyText="Không có dư nợ" formatter={(value) => `${formatNumber(value, 2)}x`} />
     </Section>
   );
 }
@@ -462,9 +623,9 @@ function WarningsPanel({ warnings }: { warnings: ResultWarning[] }) {
       <div className="grid gap-2">
         {visible.length > 0 ? visible.map((warning) => (
           <div className={cn("rounded-lg px-3 py-2 text-xs font-semibold leading-5", warning.severity === "error" ? "bg-red-50 text-red-700" : warning.severity === "warning" ? "bg-amber-50 text-amber-800" : "bg-blue-50 text-brand-blue")} key={`${warning.code}-${warning.candidateId ?? "global"}-${warning.message}`}>
-            <strong>{warning.code}: </strong>{warning.message}
+            {warning.message}
           </div>
-        )) : <p className="text-sm font-medium text-brand-muted">Không có cảnh báo blocking.</p>}
+        )) : <p className="text-sm font-medium text-brand-muted">Không có cảnh báo nghiêm trọng.</p>}
       </div>
     </Section>
   );
@@ -474,7 +635,7 @@ function TracePanel({ result }: { result: QuickSizingResult }) {
   return (
     <Section title="Cách tính">
       <div className="grid gap-2">
-        {result.calculationTrace.slice(0, 5).map((trace) => (
+        {result.calculationTrace.filter((trace) => ["F13", "F16", "F17-FINANCING", "F18"].includes(trace.formulaId)).map((trace) => (
           <div className="rounded-lg bg-slate-50 p-3 text-xs leading-5" key={trace.formulaId}>
             <strong className="text-brand-navy">{trace.formulaId} - {trace.title}</strong>
             <p className="mt-1 font-medium text-brand-muted">{trace.formula}</p>
@@ -542,6 +703,7 @@ function QuickSizingLeadGate({
           representative_options: {
             low_cost: compactQuickSizingCandidate(result.lowCostOption),
             recommended: compactQuickSizingCandidate(result.recommendedOption),
+            financing_recommended: compactQuickSizingCandidate(result.financingRecommendedOption),
             high_benefit: compactQuickSizingCandidate(result.highBenefitOption)
           },
           analysis_years: result.analysisYears,
@@ -569,7 +731,7 @@ function QuickSizingLeadGate({
       <Card className="rounded-xl border-blue-100 bg-gradient-to-br from-blue-50/80 to-white p-5 shadow-panel">
         <span className="inline-flex rounded-full bg-white px-3 py-1 text-xs font-bold text-brand-blue">Kết quả sơ bộ</span>
         <h2 className="mt-4 text-2xl font-bold text-brand-navy">Phương án đề xuất khoảng {formatNumber(candidate.powerKw, 0)} kW / {formatNumber(candidate.energyKwh, 0)} kWh</h2>
-        <p className="mt-3 max-w-[760px] text-sm font-medium leading-6 text-brand-muted">Hệ thống đã hoàn tất candidate grid và xác định phương án đại diện. Nhập thông tin liên hệ để mở báo cáo đầy đủ gồm ba phương án, dòng tiền, NPV, IRR, Pareto, CAPEX và các cảnh báo giả định.</p>
+        <p className="mt-3 max-w-[760px] text-sm font-medium leading-6 text-brand-muted">Hệ thống đã so sánh các cấu hình và xác định những phương án đại diện. Nhập thông tin liên hệ để mở báo cáo đầy đủ gồm ba phương án, dòng tiền, NPV, IRR, CAPEX và các cảnh báo giả định.</p>
         <div className="mt-5 grid grid-cols-4 gap-3 max-lg:grid-cols-2 max-sm:grid-cols-1">
           <Metric label="Công suất sơ bộ" value={`${formatNumber(candidate.powerKw, 0)} kW`} />
           <Metric label="Dung lượng sơ bộ" value={`${formatNumber(candidate.energyKwh, 0)} kWh`} />
@@ -588,7 +750,7 @@ function QuickSizingLeadGate({
 
       <Card className="sticky top-24 rounded-xl bg-white p-5 shadow-panel max-xl:static">
         <h2 className="text-xl font-bold text-brand-navy">Mở báo cáo Quick Sizing đầy đủ</h2>
-        <p className="mt-2 text-sm font-medium leading-6 text-brand-muted">Thông tin được lưu vào pipeline lead của DataInsight cùng input và kết quả Quick Sizing để đội ngũ tư vấn tiếp tục hỗ trợ.</p>
+        <p className="mt-2 text-sm font-medium leading-6 text-brand-muted">Thông tin liên hệ, dữ liệu đầu vào và kết quả Quick Sizing sẽ được lưu để đội ngũ DataInsight tiếp tục tư vấn và hỗ trợ.</p>
         <form className="mt-4 grid gap-3" onSubmit={submit}>
           <LeadInput icon={UserRound} label="Họ và tên" value={form.name} onChange={(value) => setForm({ ...form, name: value })} />
           <LeadInput icon={Wallet} label="Công ty" required={false} value={form.company} onChange={(value) => setForm({ ...form, company: value })} />
@@ -615,9 +777,15 @@ function ComparisonTable({ analysisYears, options, selectedId }: { analysisYears
     ["Dung lượng", (item) => `${formatNumber(item.energyKwh, 0)} kWh`],
     ["CAPEX", (item) => formatVnd(item.capex.totalCapexVnd)],
     ["Tiết kiệm ròng/năm", (item) => formatVnd(item.netOperatingSavingYear1Vnd)],
-    ["Payback", (item) => formatPayback(item.paybackYears)],
-    [`NPV ${analysisYears} năm`, (item) => formatVnd(item.npvVnd)],
-    ["IRR", (item) => formatPercent(item.irrPct)]
+    ["Hoàn vốn dự án", (item) => formatPayback(item.paybackYears)],
+    [`NPV dự án ${analysisYears} năm`, (item) => formatVnd(item.npvVnd)],
+    ["IRR dự án", (item) => formatPercent(item.irrPct)],
+    ["Khoản vay", (item) => formatVnd(item.debtAmountVnd)],
+    ["Vốn chủ ban đầu", (item) => formatVnd(item.equityInvestmentVnd)],
+    ["Hoàn vốn vốn chủ", (item) => formatPayback(item.equityPaybackYears)],
+    [`NPV vốn chủ ${analysisYears} năm`, (item) => formatVnd(item.equityNpvVnd)],
+    ["IRR vốn chủ", (item) => formatPercent(item.equityIrrPct)],
+    ["DSCR thấp nhất", (item) => item.minimumDscr === null ? "N/A" : `${formatNumber(item.minimumDscr, 2)}x`]
   ];
   return <Section title="So sánh ba phương án"><div className="overflow-x-auto"><table className="w-full min-w-[680px] border-collapse text-sm"><thead><tr className="bg-blue-50"><th className="px-3 py-3 text-left">Chỉ tiêu</th>{options.map((item) => <th className={cn("px-3 py-3 text-center", item.id === selectedId && "bg-brand-blue text-white")} key={item.id}>{item.title}</th>)}</tr></thead><tbody>{rows.map(([label, render]) => <tr className="border-t border-brand-line" key={label}><td className="px-3 py-2 font-semibold text-brand-navy">{label}</td>{options.map((item) => <td className={cn("px-3 py-2 text-center font-medium text-brand-muted", item.id === selectedId && "bg-blue-50 font-bold text-brand-blue")} key={item.id}>{render(item)}</td>)}</tr>)}</tbody></table></div></Section>;
 }
@@ -638,6 +806,18 @@ function compactQuickSizingCandidate(candidate: SizingCandidateResult | null) {
     npv_vnd: candidate.npvVnd,
     irr_pct: candidate.irrPct,
     payback_years: candidate.paybackYears,
+    project_npv_vnd: candidate.npvVnd,
+    project_irr_pct: candidate.irrPct,
+    project_payback_years: candidate.paybackYears,
+    debt_amount_vnd: candidate.debtAmountVnd,
+    equity_investment_vnd: candidate.equityInvestmentVnd,
+    total_interest_vnd: candidate.totalInterestVnd,
+    cost_of_equity_pct: candidate.costOfEquityPct,
+    equity_npv_vnd: candidate.equityNpvVnd,
+    equity_irr_pct: candidate.equityIrrPct,
+    equity_payback_years: candidate.equityPaybackYears,
+    minimum_dscr: candidate.minimumDscr,
+    average_dscr: candidate.averageDscr,
     technical_coverage_pct: candidate.technicalCoveragePct,
     effective_peak_reduction_kw: candidate.effectivePeakReductionKw,
     budget_status: candidate.budgetEvaluation.status,
@@ -703,15 +883,35 @@ function formatDemandApplicability(value: QuickSizingAssumptions["demandChargeAp
 
 function formatDemandSource(value: string) {
   const labels: Record<string, string> = {
-    invoice: "Hóa đơn/hợp đồng",
+    invoice: "Hóa đơn hoặc hợp đồng",
     user_input: "Người dùng nhập",
-    evn_trial_reference: "EVN trial reference",
+    step1_voltage_auto: "Tự động theo cấp điện áp",
+    evn_trial_reference: "Tham chiếu thử nghiệm",
     not_applicable: "Không áp dụng",
     not_confirmed: "Chưa xác nhận",
-    legacy_unconfirmed: "Legacy chưa xác nhận"
+    legacy_unconfirmed: "Dữ liệu cũ chưa xác nhận"
   };
 
-  return labels[value] ?? value;
+  return labels[value] ?? "Nguồn tham chiếu";
+}
+
+function formatDemandChargeStatusLabel(value: string) {
+  const labels: Record<string, string> = {
+    invoice_confirmed: "Đã xác nhận theo hóa đơn hoặc hợp đồng",
+    manual_unconfirmed: "Giá nhập thủ công chưa xác nhận",
+    preliminary_reference: "Tham chiếu sơ bộ",
+    trial_reference: "Tham chiếu thử nghiệm",
+    not_applicable: "Không áp dụng",
+    unknown: "Chưa xác định",
+    legacy_unconfirmed: "Dữ liệu cũ chưa xác nhận",
+    invalid_input: "Cần kiểm tra lại giá trị"
+  };
+
+  return labels[value] ?? "Chưa xác định";
+}
+
+function formatCostModelStatusLabel(value: string) {
+  return value === "confirmed" ? "Đã xác nhận" : "Ước tính sơ bộ";
 }
 
 function formatDemandVoltageBand(value: QuickSizingAssumptions["detailedVoltageBand"]) {

@@ -5,6 +5,7 @@ from app.dependencies.storage import StorageClient
 from app.models.project import ProjectDocument
 from app.modules.datasets.repository import DatasetRepository
 from app.modules.files.repository import FileRepository
+from app.modules.projects.enums import ProjectStatus, ProjectType
 from app.modules.projects.repository import ProjectRepository
 from app.modules.projects.schemas import (
     ProjectCreateRequest,
@@ -64,6 +65,46 @@ class ProjectService:
             items=[self._to_response(project) for project in projects],
             meta=PageMeta(page=page, page_size=page_size, total=total),
         )
+
+    async def list_admin(
+        self,
+        *,
+        page: int,
+        page_size: int,
+        skip: int,
+        status: ProjectStatus | None,
+        project_type: ProjectType | None,
+        search: str | None,
+    ) -> PageResponse[ProjectResponse]:
+        total = await self.project_repository.count_admin(
+            status=status,
+            project_type=project_type,
+            search=search,
+        )
+        projects = await self.project_repository.list_admin(
+            skip=skip,
+            limit=page_size,
+            status=status,
+            project_type=project_type,
+            search=search,
+        )
+        return PageResponse[ProjectResponse](
+            items=[self._to_response(project) for project in projects],
+            meta=PageMeta(page=page, page_size=page_size, total=total),
+        )
+
+    async def update_admin(
+        self,
+        project_id: str,
+        payload: ProjectUpdateRequest,
+    ) -> ProjectResponse:
+        project = await self.project_repository.update_admin(
+            project_id,
+            payload.model_dump(exclude_unset=True),
+        )
+        if project is None:
+            raise NotFoundError("Project not found.")
+        return self._to_response(project)
 
     async def get_project(
         self,

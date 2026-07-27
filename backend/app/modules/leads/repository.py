@@ -24,6 +24,16 @@ class LeadRepository:
     def __init__(self, database: AsyncIOMotorDatabase) -> None:
         self.collection = database["leads"]
 
+    async def get_by_email(self, email: str) -> LeadDocument | None:
+        document = await self.collection.find_one({"email": email.strip().lower()})
+        normalized = _normalize(document)
+        return LeadDocument.model_validate(normalized) if normalized else None
+
+    async def get_by_result_code(self, result_code: str) -> LeadDocument | None:
+        document = await self.collection.find_one({"result_code": result_code})
+        normalized = _normalize(document)
+        return LeadDocument.model_validate(normalized) if normalized else None
+
     async def upsert_by_email(
         self,
         *,
@@ -73,6 +83,53 @@ class LeadRepository:
             return_document=ReturnDocument.AFTER,
         )
         return LeadDocument.model_validate(_normalize(document))
+
+    async def mark_planner_conversion(
+        self,
+        *,
+        result_code: str,
+        user_id: str,
+        project_id: str,
+        selected_candidate_id: str | None,
+        lead_score: int,
+        lead_grade: str,
+        score_reasons: list[str],
+    ) -> LeadDocument | None:
+        now = utc_now()
+        interaction = LeadInteraction(
+            source=LeadSource.BESS_PLANNER,
+            payload={
+                "event": "quick_sizing_to_bess_planner",
+                "user_id": user_id,
+                "project_id": project_id,
+                "selected_candidate_id": selected_candidate_id,
+            },
+        )
+        document = await self.collection.find_one_and_update(
+            {"result_code": result_code},
+            {
+                "$set": {
+                    "user_id": user_id,
+                    "planner_conversion_at": now,
+                    "planner_project_id": project_id,
+                    "lead_score": lead_score,
+                    "lead_grade": lead_grade,
+                    "score_reasons": score_reasons,
+                    "updated_at": now,
+                },
+                "$addToSet": {"sources": LeadSource.BESS_PLANNER.value},
+                "$push": {
+                    "interactions": {
+                        "$each": [interaction.model_dump(mode="python")],
+                        "$slice": -100,
+                    }
+                },
+                "$inc": {"touch_count": 1},
+            },
+            return_document=ReturnDocument.AFTER,
+        )
+        normalized = _normalize(document)
+        return LeadDocument.model_validate(normalized) if normalized else None
 
     async def count(
         self,

@@ -29,7 +29,7 @@ import { cn } from "@/lib/utils";
 import { AdminShell } from "./admin-pages";
 
 const statuses: LeadStatus[] = ["new", "contacted", "qualified", "proposal", "converted", "lost"];
-const sources: LeadSource[] = ["quick_sizing", "contact_form", "registration"];
+const sources: LeadSource[] = ["quick_sizing", "bess_planner", "contact_form", "registration"];
 
 export function AdminLeadsPage() {
   const [leads, setLeads] = useState<LeadResponse[]>([]);
@@ -137,6 +137,7 @@ export function AdminLeadsPage() {
                     <th className="px-4 py-3">Khách hàng</th>
                     <th className="px-4 py-3">Liên hệ</th>
                     <th className="px-4 py-3">Nguồn</th>
+                    <th className="px-4 py-3">Điểm lead</th>
                     <th className="px-4 py-3">Nhu cầu</th>
                     <th className="px-4 py-3">Trạng thái</th>
                     <th className="px-4 py-3">Cập nhật</th>
@@ -148,6 +149,7 @@ export function AdminLeadsPage() {
                       <td className="px-4 py-3"><strong className="block text-brand-navy">{lead.full_name || "Chưa có tên"}</strong><span className="mt-1 block text-xs font-medium text-brand-muted">{lead.company_name || lead.industry || "Chưa có công ty"}</span></td>
                       <td className="px-4 py-3"><span className="flex items-center gap-2 text-brand-navy"><Mail size={14} />{lead.email}</span><span className="mt-1 flex items-center gap-2 text-xs text-brand-muted"><Phone size={13} />{lead.phone || "Chưa có SĐT"}</span></td>
                       <td className="px-4 py-3"><div className="flex flex-wrap gap-1">{lead.sources.map((source) => <span className="rounded-full bg-violet-50 px-2 py-1 text-xs font-bold text-violet-700" key={source}>{sourceLabel(source)}</span>)}</div></td>
+                      <td className="px-4 py-3"><span className={cn("inline-flex min-w-16 justify-center rounded-full px-2.5 py-1 text-xs font-bold", lead.lead_grade === "hot" ? "bg-red-50 text-red-700" : lead.lead_grade === "warm" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-brand-muted")}>{lead.lead_score} · {gradeLabel(lead.lead_grade)}</span></td>
                       <td className="max-w-[220px] px-4 py-3"><span className="line-clamp-2 font-medium text-brand-muted">{lead.interest || lead.message || "Chưa xác định"}</span></td>
                       <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
                         <select className="h-9 rounded-md border border-brand-line bg-white px-2 text-xs font-bold text-brand-navy" disabled={busyId === lead.id} value={lead.status} onChange={(event) => void updateLead(lead, { status: event.target.value as LeadStatus })}>
@@ -197,13 +199,16 @@ function LeadDetail({ lead, busy, onSave }: { lead: LeadResponse | null; busy: b
         <InfoRow label="Số điện thoại" value={lead.phone || "—"} />
         <InfoRow label="Công ty" value={lead.company_name || "—"} />
         <InfoRow label="Nguồn" value={lead.sources.map(sourceLabel).join(", ")} />
+        <InfoRow label="Điểm lead" value={`${lead.lead_score}/100 · ${gradeLabel(lead.lead_grade)}`} />
         <InfoRow label="Consent training" value={lead.training_consent ? "Có" : "Không"} />
         <InfoRow label="Mã Quick Sizing" value={lead.result_code || "—"} />
+        <InfoRow label="Chuyển sang Planner" value={lead.planner_conversion_at ? formatDateTime(lead.planner_conversion_at) : "Chưa"} />
       </div>
 
+      {lead.score_reasons.length ? <div className="mt-4 rounded-lg border border-amber-100 bg-amber-50 p-3 text-xs font-medium leading-5 text-amber-800"><strong className="block">Tín hiệu chấm điểm</strong>{lead.score_reasons.slice(0, 6).join(" · ")}</div> : null}
       {quickInput || quickResult ? <div className="mt-4 rounded-lg border border-violet-100 bg-violet-50 p-3 text-xs font-medium leading-5 text-brand-muted"><strong className="block text-violet-700">Có dữ liệu Quick Sizing</strong>{lead.training_consent ? "Đã lưu snapshot input/result và được phép dùng dữ liệu ẩn danh để cải thiện mô hình." : "Đã lưu snapshot input/result để tư vấn; không được đưa vào tập training khi chưa có consent."}</div> : null}
 
-      {quickCandidate ? <div className="mt-3 grid grid-cols-2 gap-2 text-xs"><QuickMetric label="Sizing" value={`${formatNumber(quickCandidate.power_kw)} kW / ${formatNumber(quickCandidate.energy_kwh)} kWh`} /><QuickMetric label="CAPEX" value={formatVnd(quickCandidate.capex_vnd)} /><QuickMetric label="NPV" value={formatVnd(quickCandidate.npv_vnd)} /><QuickMetric label="Payback" value={quickCandidate.payback_years === null ? "Chưa hoàn vốn" : `${formatNumber(quickCandidate.payback_years, 1)} năm`} /></div> : null}
+      {quickCandidate ? <div className="mt-3 grid grid-cols-2 gap-2 text-xs"><QuickMetric label="Sizing" value={`${formatNumber(quickCandidate.power_kw)} kW / ${formatNumber(quickCandidate.energy_kwh)} kWh`} /><QuickMetric label="CAPEX" value={formatVnd(quickCandidate.capex_vnd)} /><QuickMetric label="Project NPV" value={formatVnd(quickCandidate.project_npv_vnd)} /><QuickMetric label="Project Payback" value={quickCandidate.project_payback_years === null ? "Chưa hoàn vốn" : `${formatNumber(quickCandidate.project_payback_years, 1)} năm`} /><QuickMetric label="Equity NPV" value={formatVnd(quickCandidate.equity_npv_vnd)} /><QuickMetric label="Equity IRR" value={quickCandidate.equity_irr_pct === null ? "—" : `${formatNumber(quickCandidate.equity_irr_pct, 1)}%`} /><QuickMetric label="DSCR thấp nhất" value={quickCandidate.minimum_dscr === null ? "Không có dư nợ" : `${formatNumber(quickCandidate.minimum_dscr, 2)}x`} /><QuickMetric label="Khoản vay" value={formatVnd(quickCandidate.debt_amount_vnd)} /></div> : null}
 
       <div className="mt-5 grid gap-3">
         <label className="grid gap-1.5 text-sm font-bold text-brand-navy">Người phụ trách<Input value={assignedTo} onChange={(event) => setAssignedTo(event.target.value)} placeholder="Tên sales/kỹ sư" /></label>
@@ -239,8 +244,12 @@ function readQuickSizingCandidate(result: Record<string, unknown> | null) {
     power_kw: powerKw,
     energy_kwh: energyKwh,
     capex_vnd: numericValue(values.capex_vnd),
-    npv_vnd: numericValue(values.npv_vnd),
-    payback_years: numericValue(values.payback_years)
+    project_npv_vnd: numericValue(values.project_npv_vnd) ?? numericValue(values.npv_vnd),
+    project_payback_years: numericValue(values.project_payback_years) ?? numericValue(values.payback_years),
+    debt_amount_vnd: numericValue(values.debt_amount_vnd),
+    equity_npv_vnd: numericValue(values.equity_npv_vnd),
+    equity_irr_pct: numericValue(values.equity_irr_pct),
+    minimum_dscr: numericValue(values.minimum_dscr)
   };
 }
 
@@ -260,7 +269,11 @@ function formatVnd(value: number | null) {
 }
 
 function sourceLabel(source: LeadSource) {
-  return { quick_sizing: "Quick Sizing", contact_form: "Liên hệ", registration: "Đăng ký" }[source];
+  return { quick_sizing: "Quick Sizing", bess_planner: "BESS Planner", contact_form: "Liên hệ", registration: "Đăng ký" }[source];
+}
+
+function gradeLabel(grade: LeadResponse["lead_grade"]) {
+  return { cold: "Cold", warm: "Warm", hot: "Hot" }[grade];
 }
 
 function statusLabel(status: LeadStatus) {

@@ -5,6 +5,7 @@ class LeadSource(StrEnum):
     CONTACT_FORM = "contact_form"
     QUICK_SIZING = "quick_sizing"
     REGISTRATION = "registration"
+    BESS_PLANNER = "bess_planner"
 
 
 class LeadStatus(StrEnum):

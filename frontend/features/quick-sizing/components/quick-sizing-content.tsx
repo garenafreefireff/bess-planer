@@ -147,7 +147,7 @@ export function QuickSizingContent() {
           engineVersion: analysisRun.engine_version
         })
       );
-      toast.success("Đã tạo bộ giả định từ backend.");
+      toast.success("Đã tạo bộ giả định ban đầu.");
       router.push("/quick-sizing/gia-dinh");
     } catch (error) {
       toast.error(readQuickSizingApiError(error));
@@ -715,7 +715,7 @@ function QuickSizingActionBar({
         type="submit"
       >
         <Sparkles size={17} />
-        {isSubmitting ? "Đang tính từ backend..." : "Tiếp tục đến giả định"}
+        {isSubmitting ? "Đang tính toán..." : "Tiếp tục đến giả định"}
         <ArrowRight size={17} />
       </button>
     </div>

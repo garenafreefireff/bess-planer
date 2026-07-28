@@ -1,5 +1,8 @@
-from fastapi import APIRouter
+﻿from fastapi import APIRouter
 
+from app.modules.admin_dashboard.router import router as admin_dashboard_router
+from app.modules.admin_files.router import router as admin_files_router
+from app.modules.admin_search.router import router as admin_search_router
 from app.modules.analyses.router import router as analyses_router
 from app.modules.audit_logs.router import router as audit_logs_router
 from app.modules.auth.router import router as auth_router
@@ -31,6 +34,9 @@ api_router.include_router(auth_router, prefix="/auth", tags=["auth"])
 api_router.include_router(users_router, prefix="/users", tags=["users"])
 api_router.include_router(organization_router, prefix="/organizations", tags=["organizations"])
 api_router.include_router(admin_users_router, prefix="/admin/users", tags=["admin-users"])
+api_router.include_router(admin_dashboard_router, prefix="/admin/dashboard", tags=["admin-dashboard"])
+api_router.include_router(admin_files_router, prefix="/admin/files", tags=["admin-files"])
+api_router.include_router(admin_search_router, prefix="/admin/search", tags=["admin-search"])
 api_router.include_router(sites_router, prefix="/sites", tags=["sites"])
 api_router.include_router(projects_router, prefix="/projects", tags=["projects"])
 api_router.include_router(admin_projects_router, prefix="/admin/projects", tags=["admin-projects"])
@@ -49,3 +55,5 @@ api_router.include_router(
     tags=["system-settings"],
 )
 api_router.include_router(analyses_router, prefix="/analyses", tags=["analyses"])
+
+

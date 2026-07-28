@@ -1,4 +1,4 @@
-import { AxiosError } from "axios";
+﻿import { AxiosError } from "axios";
 
 import apiClient from "@/lib/api/client";
 
@@ -133,11 +133,15 @@ export const adminProjectsApi = {
   }
 };
 
-export function readAdminApiError(error: unknown) {
+export function readAdminApiError(error: unknown): string {
   if (error instanceof AxiosError) {
-    const message = error.response?.data?.message ?? error.response?.data?.detail;
+    const detail = error.response?.data as { message?: unknown; detail?: unknown } | undefined;
+    const message = detail?.message ?? detail?.detail;
     if (typeof message === "string") return message;
     if (error.response?.status === 403) return "Tài khoản không có quyền quản trị.";
+    if (error.response?.status === 404) return "Không tìm thấy dữ liệu yêu cầu.";
+    if (error.response?.status === 503) return "MongoDB chưa sẵn sàng. Vui lòng kiểm tra backend và database.";
   }
   return "Không thể tải dữ liệu quản trị. Vui lòng thử lại.";
 }
+

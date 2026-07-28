@@ -40,6 +40,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             RateLimitPolicy("quick_sizing", "POST", f"{prefix}/analyses/quick-sizing", settings.rate_limit_quick_sizing_per_minute),
             RateLimitPolicy("lead_capture", "POST", f"{prefix}/leads", settings.rate_limit_lead_capture_per_minute),
             RateLimitPolicy("quick_sizing_lead", "POST", f"{prefix}/leads/quick-sizing", settings.rate_limit_lead_capture_per_minute),
+            RateLimitPolicy("sizing_lab_persistent", "POST", f"{prefix}/analyses/sizing-lab", settings.rate_limit_sizing_lab_per_minute),
             RateLimitPolicy("sizing_lab", "POST", f"{prefix}/analyses/sizing-lab/transient", settings.rate_limit_sizing_lab_per_minute),
         )
 

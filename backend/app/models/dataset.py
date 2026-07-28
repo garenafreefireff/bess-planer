@@ -14,6 +14,7 @@ class DatasetDocument(BaseDocument):
     file_id: str
     dataset_type: DatasetType
     status: DatasetStatus
+    version: int = 1
     row_count: int = 0
     valid_row_count: int = 0
     interval_minutes: float | None = None

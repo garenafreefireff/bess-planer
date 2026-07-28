@@ -12,6 +12,8 @@ class ProjectDocument(BaseDocument):
     site_id: str
     bess_catalog_id: str
     latest_analysis_run_id: str | None = None
+    active_load_dataset_id: str | None = None
+    active_pv_dataset_id: str | None = None
     name: str
     project_type: ProjectType
     status: ProjectStatus = ProjectStatus.DRAFT

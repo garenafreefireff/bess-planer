@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -14,7 +14,6 @@ import {
   Cloud,
   CloudUpload,
   CreditCard,
-  Database,
   Download,
   Edit3,
   Eye,
@@ -33,16 +32,13 @@ import {
   PackagePlus,
   Plus,
   RefreshCw,
-  Search,
   Settings,
   ShieldCheck,
   SlidersHorizontal,
-  UploadCloud,
   UserCheck,
   UserCog,
   UserPlus,
   Users,
-  XCircle,
   Zap
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -51,6 +47,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { authApi } from "@/features/auth/api/auth.api";
+import { AdminGlobalSearch } from "@/features/admin/search/components/admin-global-search";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { cn } from "@/lib/utils";
 
@@ -132,14 +129,6 @@ const toneStyles: Record<Tone, { icon: string; text: string; bg: string; fill: s
   }
 };
 
-const overviewMetrics: Metric[] = [
-  { title: "Tổng người dùng", value: "1.248", delta: "12.5%", icon: Users, tone: "blue" },
-  { title: "Người dùng hoạt động", value: "892", delta: "18.7%", icon: UserCheck, tone: "green" },
-  { title: "Tổng dự án", value: "342", delta: "9.3%", icon: Folder, tone: "purple" },
-  { title: "Tổng file upload", value: "18.62 TB", delta: "23.4%", icon: CloudUpload, tone: "orange" },
-  { title: "Doanh thu tháng", value: "312.450.000 đ", delta: "15.6%", icon: CircleDollarSign, tone: "green" }
-];
-
 const roleMetrics: Metric[] = [
   { title: "Tổng vai trò", value: "7", delta: "12.5%", icon: Users, tone: "blue" },
   { title: "Vai trò tuỳ chỉnh", value: "3", delta: "23.1%", icon: SlidersHorizontal, tone: "green" },
@@ -160,14 +149,6 @@ const projectMetrics: Metric[] = [
   { title: "Hoàn thành", value: "128", delta: "21.4%", icon: CheckCircle2, tone: "green" },
   { title: "Tạm dừng", value: "38", delta: "6.2%", icon: Gauge, tone: "orange" },
   { title: "Dự án mới tháng này", value: "46", delta: "15.6%", icon: Plus, tone: "yellow" }
-];
-
-const fileMetrics: Metric[] = [
-  { title: "Tổng file", value: "12.458", delta: "18.7%", icon: FileText, tone: "blue" },
-  { title: "Dung lượng lưu trữ", value: "268.4 GB", delta: "14.2%", icon: Database, tone: "green" },
-  { title: "Upload hôm nay", value: "186", delta: "23.5%", icon: UploadCloud, tone: "purple" },
-  { title: "File lỗi", value: "156", delta: "6.3%", icon: AlertTriangle, tone: "orange", down: true },
-  { title: "File chờ duyệt", value: "342", delta: "12.1%", icon: CalendarDays, tone: "red" }
 ];
 
 const billingMetrics: Metric[] = [
@@ -218,19 +199,6 @@ const projects = [
   ["PRJ-2024-00560", "Nhà máy điện mặt trời Ninh Thuận", "Công ty TNHH Ninh Thuận Solar", "Nguyễn Văn Admin", "Quick Sizing", "Hoàn thành", "21/05/2024", "26/05/2024 09:40"]
 ];
 
-const files = [
-  ["Bao_cao_san_luong_T5_2024.xlsx", "Báo cáo sản lượng", "XLSX", "Nguyễn Văn An", "EVN HCMC", "Nhà máy điện Thủ Đức", "2.45 MB", "31/05/2024 14:32", "Hợp lệ"],
-  ["Hop_dong_mua_ban_dien_2024.pdf", "Hợp đồng", "PDF", "Trần Thị Bình", "PV Power", "NMĐ Cà Mau 1&2", "1.38 MB", "31/05/2024 11:05", "Hợp lệ"],
-  ["Du_lieu_van_hanh_T5.csv", "Dữ liệu vận hành", "CSV", "Lê Minh Đức", "EVN HANOI", "Trạm biến áp 110kV", "5.76 MB", "31/05/2024 09:41", "Chờ duyệt"],
-  ["Ke_hoach_bao_tri_T6_2024.xlsx", "Kế hoạch bảo trì", "XLSX", "Phạm Quốc Huy", "REE Power", "Nhà máy điện Gió Bạc Liêu", "3.21 MB", "30/05/2024 16:20", "Hợp lệ"],
-  ["Huong_dan_van_hanh_thiet_bi.pdf", "Tài liệu kỹ thuật", "PDF", "Vũ Thị Hường", "EVNGENCO 3", "NMNĐ Vĩnh Tân 4", "4.92 MB", "30/05/2024 13:15", "Lỗi định dạng"],
-  ["Du_lieu_SCADA_T5_2024.zip", "Dữ liệu SCADA", "ZIP", "Nguyễn Hoàng Nam", "PC Đà Nẵng", "Lưới điện phân phối", "128.7 MB", "30/05/2024 10:02", "Chờ duyệt"],
-  ["Chi_so_cong_to_T5.csv", "Chỉ số công tơ", "CSV", "Đỗ Hải Long", "EVN NPC", "Công tơ khách hàng", "1.02 MB", "29/05/2024 15:47", "Hợp lệ"],
-  ["Bien_ban_nghiem_thu_2024.pdf", "Biên bản nghiệm thu", "PDF", "Ngô Thị Mai", "SolarTech", "Dự án Điện mặt trời 50MW", "2.18 MB", "29/05/2024 09:12", "Chờ duyệt"],
-  ["Bao_cao_tai_chinh_Q1_2024.xlsx", "Báo cáo tài chính", "XLSX", "Phan Văn Dũng", "EVNFINANCE", "Báo cáo quý I/2024", "6.83 MB", "28/05/2024 17:33", "Hợp lệ"],
-  ["De_xuat_dau_tu_du_an.pdf", "Đề xuất đầu tư", "PDF", "Bùi Đức Thắng", "PC Hải Phòng", "Nâng cấp lưới điện 2024", "3.66 MB", "29/05/2024 14:08", "Lỗi định dạng"]
-];
-
 const payments = [
   ["EV", "Công ty TNHH Năng lượng Xanh", "greenenergy@company.vn", "Professional", "Tháng", "599.000 đ", "Đã thanh toán", "INV-2024-0512", "12/06/2024"],
   ["PV", "EV Power JSC", "contact@evpower.vn", "Starter", "Tháng", "199.000 đ", "Chờ thanh toán", "INV-2024-0528", "28/06/2024"],
@@ -248,31 +216,6 @@ const activityRows = [
   ["01/05/2024 08:13:11", "Hệ thống", "Đăng xuất người dùng", "Người dùng: tranminhquan@evn.vn", "Thành công", "System"],
   ["01/05/2024 07:59:41", "Hệ thống", "Đăng nhập thất bại", "Người dùng: admin@evn.vn", "Thất bại", "113.161.45.21"]
 ];
-
-export function AdminOverviewPage() {
-  return (
-    <AdminShell activeItem="Tổng quan" title="Tổng quan hệ thống" subtitle="Chào mừng bạn trở lại! Đây là tổng quan hoạt động của hệ thống EnergyInsight." action={<DateRange />}>
-      <MetricGrid metrics={overviewMetrics} columns="five" />
-      <div className="grid grid-cols-[1.35fr_0.85fr_1.15fr] gap-4 max-2xl:grid-cols-2 max-xl:grid-cols-1">
-        <Panel title="Tăng trưởng người dùng" action={<MiniSelect label="6 tháng gần nhất" />} className="max-2xl:col-span-2 max-xl:col-span-1">
-          <LineChart lines={[{ color: "#075BEA", values: [820, 870, 940, 1020, 1110, 1248] }, { color: "#0CA34B", values: [520, 560, 610, 670, 750, 892] }]} labels={["Tháng 12/2023", "Tháng 01/2024", "Tháng 02/2024", "Tháng 03/2024", "Tháng 04/2024", "Tháng 05/2024"]} />
-        </Panel>
-        <Panel title="Phân bổ người dùng theo vai trò">
-          <DonutWithLegend center="1.248" label="người dùng" items={[["Admin", "5 (0.4%)", "blue"], ["Quản trị viên", "18 (1.4%)", "green"], ["Kỹ sư", "563 (45.1%)", "purple"], ["Nhà phân tích", "412 (33.0%)", "purple"], ["Khách hàng", "250 (20.1%)", "orange"]]} />
-        </Panel>
-        <Panel title="Trạng thái dự án" action={<MiniSelect label="Tất cả dự án" />}>
-          <DonutWithLegend center="342" label="dự án" items={[["Đang thực hiện", "158 (46.2%)", "green"], ["Hoàn thành", "112 (32.7%)", "blue"], ["Tạm dừng", "46 (13.5%)", "yellow"], ["Đã hủy", "26 (7.6%)", "red"]]} />
-        </Panel>
-      </div>
-      <div className="grid grid-cols-[1fr_1fr_1.25fr] gap-4 max-xl:grid-cols-1">
-        <TopUsagePanel />
-        <RecentSystemPanel />
-        <QuickStatusPanel />
-      </div>
-      <UpdatedAt />
-    </AdminShell>
-  );
-}
 
 export function AdminRolesPage() {
   return (
@@ -360,41 +303,6 @@ export function AdminProjectsPage() {
           <PanelLink label="Xem tất cả khách hàng" />
         </Panel>
       </div>
-    </AdminShell>
-  );
-}
-
-export function AdminFilesPage() {
-  return (
-    <AdminShell activeItem="File upload" title="File upload" subtitle="Quản lý và theo dõi các file được người dùng tải lên hệ thống.">
-      <MetricGrid metrics={fileMetrics} columns="five" />
-      <div className="grid grid-cols-[1fr_360px] gap-4 max-xl:grid-cols-1">
-        <div className="grid gap-4">
-          <Panel title="">
-            <FileFilters />
-          </Panel>
-          <Panel title="" className="overflow-hidden">
-            <SimpleTable headers={["Tên file", "Loại file", "Định dạng", "Người dùng", "Công ty", "Dự án", "Dung lượng", "Ngày tải lên", "Trạng thái", "Thao tác"]} rows={files.map((row) => [
-              <FileName key={row[0]} name={row[0]} type={row[2]} />,
-              row[1],
-              <Tag key={row[2]} tone={row[2] === "PDF" ? "red" : row[2] === "ZIP" ? "purple" : "green"}>{row[2]}</Tag>,
-              <AvatarText key={row[3]} name={row[3]} />,
-              row[4],
-              row[5],
-              row[6],
-              row[7],
-              <StatusPill key={row[8]} status={row[8]} />,
-              <FileActions key="actions" status={row[8]} />
-            ])} />
-            <Pagination text="Hiển thị 1 - 10 trong tổng số 12.458 file" pages={["1", "2", "3", "...", "1.246"]} />
-          </Panel>
-        </div>
-        <div className="grid content-start gap-4">
-          <RecentUploads />
-          <StorageByCompany />
-        </div>
-      </div>
-      <UpdatedAt label="Dữ liệu được cập nhật lần cuối: 31/05/2024 14:45" />
     </AdminShell>
   );
 }
@@ -546,15 +454,10 @@ export function AdminShell({ activeItem, action, children, subtitle, title }: { 
                 <span>{activeItem}</span>
               </div>
               <div className="mx-auto max-w-[560px] flex-1">
-                <label className="relative block">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-muted" size={20} />
-                  <Input className="h-12 rounded-lg pl-12 pr-16 text-[15px]" placeholder="Tìm kiếm người dùng, dự án, file..." />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 rounded border border-brand-line px-2 py-0.5 text-xs font-semibold text-brand-muted">⌘ K</span>
-                </label>
+                <AdminGlobalSearch />
               </div>
               <button className="relative text-brand-navy" type="button" aria-label="Thông báo">
                 <Bell size={25} />
-                <span className="absolute -right-2 -top-2 grid size-5 place-items-center rounded-full bg-red-500 text-xs font-bold text-white">8</span>
               </button>
               <button className="flex items-center gap-3" type="button">
                 <AdminAvatar />
@@ -813,17 +716,6 @@ function ActionGroup() {
   );
 }
 
-function FileActions({ status }: { status: string }) {
-  return (
-    <span className="inline-flex items-center gap-2">
-      <IconButton icon={Eye} />
-      {status === "Chờ duyệt" ? <IconButton icon={CheckCircle2} /> : <IconButton icon={Download} />}
-      {status === "Chờ duyệt" ? <IconButton icon={XCircle} /> : null}
-      <IconButton icon={MoreHorizontal} />
-    </span>
-  );
-}
-
 function AvatarText({ name }: { name: string }) {
   return (
     <span className="inline-flex items-center gap-2">
@@ -1016,46 +908,6 @@ function ProjectToolbar() {
   );
 }
 
-function FileFilters() {
-  return (
-    <div className="grid grid-cols-[1fr_repeat(4,220px)] gap-4 max-2xl:grid-cols-3 max-lg:grid-cols-1">
-      <Input placeholder="Tìm kiếm file..." />
-      {["Loại file", "Định dạng", "Người dùng", "Công ty"].map((field) => <FormField key={field} label={field}><SelectBox label="Tất cả" /></FormField>)}
-      <Button variant="outline">Đặt lại</Button>
-      <Button><SlidersHorizontal size={17} /> Lọc</Button>
-    </div>
-  );
-}
-
-function FileName({ name, type }: { name: string; type: string }) {
-  const iconTone = type === "PDF" ? "red" : type === "ZIP" ? "purple" : "green";
-  return <span className="inline-flex items-center gap-2"><span className={cn("grid size-7 place-items-center rounded", toneStyles[iconTone].soft)}><FileText size={15} /></span>{name}</span>;
-}
-
-function RecentUploads() {
-  return (
-    <Panel title="Hoạt động tải lên gần đây" action={<MiniSelect label="Xem tất cả" />}>
-      <div className="grid gap-4">
-        {files.slice(0, 5).map((file, index) => (
-          <div className="grid grid-cols-[34px_1fr_auto] gap-3 text-sm" key={file[0]}>
-            <span className={cn("grid size-8 place-items-center rounded", toneStyles[index % 2 ? "red" : "green"].soft)}><FileText size={17} /></span>
-            <span><strong className="block truncate">{file[0]}</strong><small className="text-brand-muted">{file[3]} • {file[4]}</small></span>
-            <CheckCircle2 className={index < 2 ? "text-brand-green" : "text-orange-500"} size={17} />
-          </div>
-        ))}
-      </div>
-    </Panel>
-  );
-}
-
-function StorageByCompany() {
-  return (
-    <Panel title="Dung lượng lưu trữ theo công ty" action={<MiniSelect label="Xem chi tiết" />}>
-      <RankBars rows={[["EVN HCMC", "62.4 GB", 60], ["PV Power", "48.7 GB", 48], ["EVN HANOI", "36.3 GB", 36], ["REE Power", "28.6 GB", 28], ["EVNGENCO 3", "23.9 GB", 24], ["Khác", "68.5 GB", 66]]} />
-    </Panel>
-  );
-}
-
 function BillingActions() {
   return (
     <div className="flex flex-wrap gap-3">
@@ -1178,53 +1030,6 @@ function SecurityEvents() {
   );
 }
 
-function TopUsagePanel() {
-  return (
-    <Panel title="Top công ty theo mức sử dụng (lưu trữ)" action={<MiniSelect label="Theo dung lượng" />}>
-      <RankBars rows={[["Công ty TNHH Năng lượng Xanh", "2.45 TB", 88], ["EV Power JSC", "1.98 TB", 68], ["SolarTech Việt Nam", "1.35 TB", 50], ["GreenFuture Co., Ltd", "1.02 TB", 38], ["Bắc Nam Energy", "0.88 TB", 32]]} />
-      <PanelLink label="Xem tất cả báo cáo sử dụng" />
-    </Panel>
-  );
-}
-
-function RecentSystemPanel() {
-  return (
-    <Panel title="Hoạt động hệ thống gần đây">
-      <div className="grid gap-3">
-        {["Người dùng mới được tạo: lê.thi.hang@evpower.vn", "Dự án “Nhà máy điện mặt trời Phú Yên” đã được tạo", "File bao-cao-2024-q2.xlsx được upload", "Vai trò Kỹ sư đã được cập nhật", "Người dùng pham.minh.tuan@xyz.com bị vô hiệu hóa"].map((item, index) => (
-          <div className="grid grid-cols-[34px_1fr_auto] items-center gap-3 text-sm" key={item}>
-            <span className={cn("grid size-8 place-items-center rounded-full", toneStyles[(["green", "blue", "purple", "orange", "red"] as Tone[])[index]].soft)}><Bell size={16} /></span>
-            <span><strong className="block font-semibold">{item}</strong><small className="text-brand-muted">Bởi Nguyễn Văn Admin</small></span>
-            <small className="text-brand-muted">{index + 2} phút trước</small>
-          </div>
-        ))}
-      </div>
-      <PanelLink label="Xem tất cả hoạt động" />
-    </Panel>
-  );
-}
-
-function QuickStatusPanel() {
-  return (
-    <Panel title="Trạng thái nhanh">
-      <div className="grid grid-cols-3 gap-4 max-sm:grid-cols-1">
-        {[
-          ["Uploads hôm nay", "268.4 GB", "Mục tiêu: 500 GB / ngày", "blue"],
-          ["Jobs thất bại", "7", "Xem chi tiết", "red"],
-          ["Gói đang hoạt động", "156", "Quản lý gói", "green"]
-        ].map(([title, value, desc, tone]) => (
-          <Card className="rounded-lg p-5 shadow-none" key={title}>
-            <CloudUpload className={toneStyles[tone as Tone].text} size={38} />
-            <span className="mt-4 block text-sm text-brand-muted">{title}</span>
-            <strong className="mt-2 block text-2xl">{value}</strong>
-            <small className={cn("mt-3 block font-semibold", toneStyles[tone as Tone].text)}>{desc}</small>
-          </Card>
-        ))}
-      </div>
-    </Panel>
-  );
-}
-
 function RankBars({ rows }: { rows: Array<[string, string, number]> }) {
   return (
     <div className="grid gap-4">
@@ -1251,3 +1056,5 @@ function PanelLink({ label }: { label: string }) {
 function UpdatedAt({ label = "Dữ liệu được cập nhật lần cuối: 31/05/2024 10:30" }: { label?: string }) {
   return <div className="pb-2 text-center text-sm font-medium text-brand-muted">{label} <RefreshCw className="inline" size={14} /></div>;
 }
+
+

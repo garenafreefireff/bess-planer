@@ -22,9 +22,10 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { sizingLabApi } from "../api/sizing-lab.api";
-import { readWorkspaceApiError, type AnalysisRunResponse } from "../api/workspace.api";
+import { readWorkspaceApiError, type AnalysisRunResponse, type DatasetResponse, type ProjectResponse, type WorkspaceFileResponse } from "../api/workspace.api";
 import { type SizingLabCandidate } from "../data/sizing-lab.types";
 import { useSizingLab } from "../hooks/use-sizing-lab";
+import { ProjectDataFilesPanel } from "./project-data-files-panel";
 
 const tabs = [
   "Tổng quan",
@@ -175,7 +176,7 @@ export function SizingLabResultPage() {
       {activeTab === "Planning chi tiết" ? <PlanningTab result={result} candidate={result.selected} /> : null}
       {activeTab === "So sánh chế độ" ? <ComparisonTab result={result} /> : null}
       {activeTab === "Sizing theo tháng" ? <MonthlyTab result={result} /> : null}
-      {activeTab === "Dữ liệu đầu vào" ? <InputTab result={result} projectConfiguration={sizing.project?.configuration ?? {}} datasets={sizing.datasets} history={sizing.history} /> : null}
+      {activeTab === "Dữ liệu đầu vào" ? <InputTab result={result} project={sizing.project} datasets={sizing.datasets} files={sizing.files} analysisRun={sizing.analysisRun} history={sizing.history} /> : null}
 
       <div className="sticky bottom-4 z-10 mt-5 flex items-center justify-between gap-4 rounded-xl border border-brand-line bg-white/95 p-4 shadow-panel backdrop-blur max-md:flex-col max-md:items-stretch">
         <div>
@@ -268,37 +269,46 @@ function RecommendationTab({ result, selectedCandidateId, onSelect }: { result: 
 }
 
 function ParetoChart({ candidates, selectedCandidateId, onSelect, compact = false }: { candidates: SizingLabCandidate[]; selectedCandidateId: string; onSelect: (id: string) => void; compact?: boolean }) {
-  const width = 760;
-  const height = compact ? 250 : 330;
-  const padding = { left: 66, right: 24, top: 28, bottom: 52 };
+  const width = compact ? 760 : 1200;
+  const height = compact ? 260 : 520;
+  const padding = compact
+    ? { left: 66, right: 24, top: 28, bottom: 48 }
+    : { left: 82, right: 32, top: 34, bottom: 56 };
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
   const savingValues = candidates.map((item) => item.annual_saving_vnd);
   const roiValues = candidates.map((item) => item.roi);
-  const minX = Math.min(...savingValues);
-  const maxX = Math.max(...savingValues);
-  const minY = Math.min(...roiValues);
-  const maxY = Math.max(...roiValues);
-  const x = (value: number) => padding.left + normalize(value, minX, maxX) * (width - padding.left - padding.right);
-  const y = (value: number) => height - padding.bottom - normalize(value, minY, maxY) * (height - padding.top - padding.bottom);
+  const [minX, maxX] = getPaddedDomain(savingValues, 0.05);
+  const [minY, maxY] = getPaddedDomain(roiValues, 0.08);
+  const x = (value: number) => padding.left + normalize(value, minX, maxX) * plotWidth;
+  const y = (value: number) => padding.top + (1 - normalize(value, minY, maxY)) * plotHeight;
   return (
-    <Card className="rounded-xl bg-white p-4 shadow-none">
-      <div className="flex items-center justify-between gap-3"><div><h2 className="font-bold text-brand-navy">Mặt Pareto tiết kiệm × ROI</h2><p className="mt-1 text-xs font-medium text-brand-muted">Đúng Sizing Lab EMS: Pareto theo tiết kiệm Oracle và ROI; ngôi sao do SLSM chọn.</p></div><span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-brand-blue">{candidates.length} phương án</span></div>
-      <svg className={cn("mt-3 w-full", compact ? "h-[220px]" : "h-[300px]")} role="img" viewBox={`0 0 ${width} ${height}`}>
+    <Card className={cn("rounded-xl bg-white p-4 shadow-none", !compact && "p-6 max-sm:p-4")}>
+      <div className="flex items-center justify-between gap-3"><div><h2 className={cn("font-bold text-brand-navy", !compact && "text-xl")}>Mặt Pareto tiết kiệm × ROI</h2><p className={cn("mt-1 font-medium text-brand-muted", compact ? "text-xs" : "text-sm")}>Đúng Sizing Lab EMS: Pareto theo tiết kiệm Oracle và ROI; ngôi sao do SLSM chọn.</p></div><span className={cn("shrink-0 rounded-full bg-blue-50 px-3 py-1 font-bold text-brand-blue", compact ? "text-xs" : "text-sm")}>{candidates.length} phương án</span></div>
+      <svg className={cn("mt-4 block w-full", compact ? "aspect-[760/260]" : "aspect-[1200/520]")} role="img" aria-label="Mặt Pareto tiết kiệm theo ROI" viewBox={`0 0 ${width} ${height}`}>
         {[0, 0.25, 0.5, 0.75, 1].map((fraction) => {
-          const lineY = padding.top + fraction * (height - padding.top - padding.bottom);
+          const lineY = padding.top + fraction * plotHeight;
           return <line key={fraction} x1={padding.left} x2={width - padding.right} y1={lineY} y2={lineY} stroke="#e4ebf5" />;
+        })}
+        {[0.25, 0.5, 0.75].map((fraction) => {
+          const lineX = padding.left + fraction * plotWidth;
+          return <line key={fraction} x1={lineX} x2={lineX} y1={padding.top} y2={height - padding.bottom} stroke="#eef3fa" />;
         })}
         <line x1={padding.left} x2={padding.left} y1={padding.top} y2={height - padding.bottom} stroke="#9aa9bf" />
         <line x1={padding.left} x2={width - padding.right} y1={height - padding.bottom} y2={height - padding.bottom} stroke="#9aa9bf" />
         <text fill="#4d5f82" fontSize="12" textAnchor="middle" x={width / 2} y={height - 12}>Tiết kiệm Oracle/năm</text>
-        <text fill="#4d5f82" fontSize="12" textAnchor="middle" transform={`rotate(-90 17 ${height / 2})`} x="17" y={height / 2}>ROI (NPV/CAPEX)</text>
+        <text fill="#4d5f82" fontSize="12" textAnchor="middle" transform={`rotate(-90 23 ${height / 2})`} x="23" y={height / 2}>ROI (NPV/CAPEX)</text>
         {candidates.map((candidate) => {
           const selected = candidate.id === selectedCandidateId;
           const recommended = candidate.selected;
           return recommended ? (
-            <text className="cursor-pointer" fill="#ef4444" fontSize={selected ? 25 : 21} key={candidate.id} onClick={() => onSelect(candidate.id)} textAnchor="middle" x={x(candidate.annual_saving_vnd)} y={y(candidate.roi) + 7}>★</text>
+            <text className="cursor-pointer" fill="#ef4444" fontSize={selected ? 28 : 23} key={candidate.id} onClick={() => onSelect(candidate.id)} textAnchor="middle" x={x(candidate.annual_saving_vnd)} y={y(candidate.roi) + 8}>
+              <title>{`${formatNumber(candidate.energy_kwh)} kWh / ${formatNumber(candidate.power_kw)} kW · ${formatMoney(candidate.annual_saving_vnd)}/năm · ROI ${(candidate.roi * 100).toFixed(1)}%`}</title>
+              ★
+            </text>
           ) : (
-            <circle className="cursor-pointer" cx={x(candidate.annual_saving_vnd)} cy={y(candidate.roi)} fill={candidate.on_pareto ? "#147fe8" : "#a6abb6"} key={candidate.id} onClick={() => onSelect(candidate.id)} r={selected ? 7 : candidate.on_pareto ? 5 : 4} stroke={selected ? "#1d2b4f" : "white"} strokeWidth={selected ? 2 : 1}>
-              <title>{`${formatNumber(candidate.energy_kwh)} kWh / ${formatNumber(candidate.power_kw)} kW · ${formatMoney(candidate.annual_saving_vnd)}/năm`}</title>
+            <circle className="cursor-pointer" cx={x(candidate.annual_saving_vnd)} cy={y(candidate.roi)} fill={candidate.on_pareto ? "#147fe8" : "#a6abb6"} key={candidate.id} onClick={() => onSelect(candidate.id)} r={selected ? 8 : candidate.on_pareto ? 6 : 5} stroke={selected ? "#1d2b4f" : "white"} strokeWidth={selected ? 2 : 1.5}>
+              <title>{`${formatNumber(candidate.energy_kwh)} kWh / ${formatNumber(candidate.power_kw)} kW · ${formatMoney(candidate.annual_saving_vnd)}/năm · ROI ${(candidate.roi * 100).toFixed(1)}%`}</title>
             </circle>
           );
         })}
@@ -421,12 +431,12 @@ function MonthlyTab({ result }: { result: NonNullable<ReturnType<typeof useSizin
   );
 }
 
-function InputTab({ result, projectConfiguration, datasets, history }: { result: NonNullable<ReturnType<typeof useSizingLab>["result"]>; projectConfiguration: Record<string, unknown>; datasets: Array<{ id: string; dataset_type: string; status: string; row_count: number; valid_row_count: number; interval_minutes: number | null; start_at: string | null; end_at: string | null }>; history: AnalysisRunResponse[] }) {
+function InputTab({ result, project, datasets, files, analysisRun, history }: { result: NonNullable<ReturnType<typeof useSizingLab>["result"]>; project: ProjectResponse | null; datasets: DatasetResponse[]; files: WorkspaceFileResponse[]; analysisRun: AnalysisRunResponse | null; history: AnalysisRunResponse[] }) {
   return (
     <div className="mt-4 grid grid-cols-2 gap-4 max-xl:grid-cols-1">
-      <Card className="rounded-xl p-5 shadow-none"><h2 className="font-bold text-brand-navy">Bộ dữ liệu đầu vào</h2><div className="mt-4 grid gap-3">{datasets.length ? datasets.map((dataset) => <div className="rounded-lg border border-brand-line bg-slate-50 p-4" key={dataset.id}><div className="flex justify-between gap-3"><strong className="text-sm text-brand-navy">{dataset.dataset_type === "load_profile" ? "Phụ tải" : "Điện mặt trời"}</strong><span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-brand-blue">{formatDatasetStatus(dataset.status)}</span></div><p className="mt-2 text-xs font-medium leading-5 text-brand-muted">{formatNumber(dataset.valid_row_count)}/{formatNumber(dataset.row_count)} dòng · chu kỳ {dataset.interval_minutes ?? "—"} phút<br />{formatDate(dataset.start_at)} – {formatDate(dataset.end_at)}</p></div>) : <div className="rounded-lg border border-green-100 bg-green-50 p-4 text-sm font-medium leading-6 text-brand-muted"><strong className="block text-brand-green">File đầu vào không được lưu</strong>Dữ liệu phụ tải và điện mặt trời chỉ được sử dụng trong quá trình phân tích. Trang này chỉ lưu các thống kê đầu vào cần thiết để trình bày kết quả.</div>}</div></Card>
+      <ProjectDataFilesPanel project={project} datasets={datasets} files={files} analysisRun={analysisRun} />
       <Card className="rounded-xl p-5 shadow-none"><h2 className="font-bold text-brand-navy">Giả định đã sử dụng</h2><div className="mt-4 grid gap-2">{Object.entries(result.assumptions).map(([key, value]) => <DetailRow key={key} label={humanizeKey(key)} value={formatNumber(value, 2)} />)}</div></Card>
-      <Card className="rounded-xl p-5 shadow-none"><h2 className="font-bold text-brand-navy">Cấu hình dự án</h2><div className="mt-4 grid gap-2">{Object.entries(projectConfiguration).filter(([, value]) => ["string", "number", "boolean"].includes(typeof value)).map(([key, value]) => <DetailRow key={key} label={humanizeKey(key)} value={String(value)} />)}</div></Card>
+      <Card className="rounded-xl p-5 shadow-none"><h2 className="font-bold text-brand-navy">Cấu hình dự án</h2><div className="mt-4 grid gap-2">{Object.entries(project?.configuration ?? {}).filter(([, value]) => ["string", "number", "boolean"].includes(typeof value)).map(([key, value]) => <DetailRow key={key} label={humanizeKey(key)} value={String(value)} />)}</div></Card>
       <Card className="rounded-xl p-5 shadow-none"><h2 className="font-bold text-brand-navy">Chất lượng dữ liệu</h2><div className="mt-4 grid gap-2"><DetailRow label="Múi giờ" value={result.input_quality.timezone} /><DetailRow label="Đơn vị Load" value={result.input_quality.configured_units.load} /><DetailRow label="Đơn vị PV" value={result.input_quality.configured_units.pv} /><DetailRow label="Peak Load" value={`${formatNumber(result.summary.site_peak_kw)} kW`} /><DetailRow label="Năng lượng năm" value={`${formatNumber(result.summary.annual_load_energy_kwh)} kWh`} /></div></Card>
       <Card className="col-span-2 rounded-xl p-5 shadow-none max-xl:col-span-1"><h2 className="font-bold text-brand-navy">Lịch sử Sizing Lab</h2><div className="mt-4 overflow-x-auto"><table className="w-full min-w-[720px] text-left text-sm"><thead className="border-b border-brand-line text-brand-muted"><tr><th className="py-3 font-bold">Thời gian</th><th className="py-3 font-bold">Lần phân tích</th><th className="py-3 font-bold">Trạng thái</th><th className="py-3 font-bold">Phiên bản tính toán</th><th className="py-3 font-bold">Phương án đề xuất</th></tr></thead><tbody className="divide-y divide-brand-line">{history.map((run) => { const runResult = run.result as Record<string, unknown>; const selected = runResult.selected && typeof runResult.selected === "object" && !Array.isArray(runResult.selected) ? runResult.selected as Record<string, unknown> : null; return <tr key={run.id ?? run.created_at}><td className="py-3">{formatDate(run.created_at)}</td><td className="py-3 font-mono text-xs">{run.id?.slice(-8) ?? "—"}</td><td className="py-3 font-semibold text-brand-blue">{formatAnalysisStatus(run.status)}</td><td className="py-3">{formatEngineVersion(run.engine_version)}</td><td className="py-3 font-bold text-brand-navy">{selected && typeof selected.energy_kwh === "number" && typeof selected.power_kw === "number" ? `${formatNumber(selected.energy_kwh)} / ${formatNumber(selected.power_kw)}` : "—"}</td></tr>; })}</tbody></table></div></Card>
     </div>
@@ -488,20 +498,22 @@ function normalize(value: number, minimum: number, maximum: number) {
   return maximum === minimum ? 0.5 : (value - minimum) / (maximum - minimum);
 }
 
+function getPaddedDomain(values: number[], paddingRatio: number): [number, number] {
+  if (!values.length) return [0, 1];
+  const minimum = Math.min(...values);
+  const maximum = Math.max(...values);
+  if (minimum === maximum) {
+    const fallbackPadding = Math.max(Math.abs(minimum) * paddingRatio, 1);
+    return [minimum - fallbackPadding, maximum + fallbackPadding];
+  }
+  const padding = (maximum - minimum) * paddingRatio;
+  return [minimum - padding, maximum + padding];
+}
+
 function formatDate(value: string | null) {
   if (!value) return "—";
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString("vi-VN");
-}
-
-function formatDatasetStatus(value: string) {
-  const labels: Record<string, string> = {
-    ready: "Sẵn sàng",
-    warning: "Cần kiểm tra",
-    invalid: "Không hợp lệ",
-    processing: "Đang xử lý"
-  };
-  return labels[value] ?? "Chưa xác định";
 }
 
 function formatAnalysisStatus(value: string) {

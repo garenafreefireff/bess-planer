@@ -13,6 +13,8 @@ class ProjectCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=160)
     project_type: ProjectType = ProjectType.BESS_PLANNING
     status: ProjectStatus = ProjectStatus.DRAFT
+    active_load_dataset_id: ObjectIdStr | None = None
+    active_pv_dataset_id: ObjectIdStr | None = None
     configuration: dict[str, Any] = Field(default_factory=dict)
     scenarios: list[dict[str, Any]] = Field(default_factory=list)
     dataset_ids: list[ObjectIdStr] = Field(default_factory=list)
@@ -30,6 +32,8 @@ class ProjectUpdateRequest(BaseModel):
     site_id: ObjectIdStr | None = None
     bess_catalog_id: ObjectIdStr | None = None
     latest_analysis_run_id: ObjectIdStr | None = None
+    active_load_dataset_id: ObjectIdStr | None = None
+    active_pv_dataset_id: ObjectIdStr | None = None
     name: str | None = Field(default=None, min_length=1, max_length=160)
     project_type: ProjectType | None = None
     status: ProjectStatus | None = None
@@ -60,6 +64,8 @@ class ProjectResponse(BaseModel):
     site_id: str
     bess_catalog_id: str
     latest_analysis_run_id: str | None = None
+    active_load_dataset_id: str | None = None
+    active_pv_dataset_id: str | None = None
     name: str
     project_type: ProjectType
     status: ProjectStatus

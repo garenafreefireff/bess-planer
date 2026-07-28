@@ -4,13 +4,15 @@ from hashlib import sha256
 from pathlib import Path
 
 from fastapi import UploadFile
+from starlette import status as http_status
 
 from app.core.config import Settings
 from app.core.exceptions import AppError, ConflictError, NotFoundError
 from app.dependencies.storage import StorageClient
 from app.models.file import FileDocument
+from app.modules.analyses.repository import AnalysisRepository
 from app.modules.datasets.repository import DatasetRepository
-from app.modules.files.enums import FileKind
+from app.modules.files.enums import FileKind, FileStatus
 from app.modules.files.repository import FileRepository
 from app.modules.files.schemas import FileResponse
 from app.modules.projects.repository import ProjectRepository
@@ -25,12 +27,14 @@ class FileService:
         file_repository: FileRepository,
         dataset_repository: DatasetRepository,
         project_repository: ProjectRepository,
+        analysis_repository: AnalysisRepository,
         storage_client: StorageClient,
         settings: Settings,
     ) -> None:
         self.file_repository = file_repository
         self.dataset_repository = dataset_repository
         self.project_repository = project_repository
+        self.analysis_repository = analysis_repository
         self.storage_client = storage_client
         self.settings = settings
 
@@ -61,6 +65,23 @@ class FileService:
                 f"File exceeds the {self.settings.max_upload_size_mb} MB upload limit.",
                 code="file_too_large",
             )
+        content_hash = sha256(content).hexdigest()
+
+        existing = await self.file_repository.get_existing_by_hash_for_user(
+            user_id=user_id,
+            project_id=project_id,
+            kind=kind,
+            sha256_hash=content_hash,
+        )
+        if existing is not None:
+            return self._to_response(existing)
+
+        latest = await self.file_repository.get_latest_by_project_kind_for_user(
+            user_id=user_id,
+            project_id=project_id,
+            kind=kind,
+        )
+        version = (latest.version + 1) if latest else 1
 
         relative_path, _ = await asyncio.to_thread(
             self.storage_client.save,
@@ -78,8 +99,10 @@ class FileService:
             content_type=upload.content_type or "application/octet-stream",
             extension=extension,
             size_bytes=len(content),
-            sha256=sha256(content).hexdigest(),
+            sha256=content_hash,
             kind=kind,
+            version=version,
+            supersedes_file_id=latest.id if latest else None,
             metadata={},
         )
         try:
@@ -96,9 +119,28 @@ class FileService:
         page: int,
         page_size: int,
         skip: int,
+        project_id: str | None = None,
+        kind: FileKind | None = None,
+        status: FileStatus | None = None,
     ) -> PageResponse[FileResponse]:
-        total = await self.file_repository.count_by_user(user_id)
-        files = await self.file_repository.list_by_user(user_id, skip=skip, limit=page_size)
+        if project_id is not None:
+            project = await self.project_repository.get_by_id_for_user(project_id, user_id)
+            if project is None:
+                raise NotFoundError("Project not found.")
+        total = await self.file_repository.count_by_user(
+            user_id,
+            project_id=project_id,
+            kind=kind,
+            status=status,
+        )
+        files = await self.file_repository.list_by_user(
+            user_id,
+            skip=skip,
+            limit=page_size,
+            project_id=project_id,
+            kind=kind,
+            status=status,
+        )
         return PageResponse[FileResponse](
             items=[self._to_response(item) for item in files],
             meta=PageMeta(page=page, page_size=page_size, total=total),
@@ -125,6 +167,12 @@ class FileService:
     async def delete_file(self, file_id: str, user_id: str) -> None:
         if await self.dataset_repository.count_by_file_for_user(file_id, user_id):
             raise ConflictError("Delete the derived dataset before deleting this file.")
+        if await self.analysis_repository.count_references_file_for_user(file_id, user_id):
+            raise AppError(
+                "File is referenced by an analysis run and cannot be deleted.",
+                code="file_used_by_analysis",
+                status_code=http_status.HTTP_409_CONFLICT,
+            )
         deleted = await self.file_repository.delete_by_id_for_user(file_id, user_id)
         if deleted is None:
             raise NotFoundError("File not found.")

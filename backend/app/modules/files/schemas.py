@@ -17,6 +17,8 @@ class FileResponse(BaseModel):
     sha256: str
     kind: FileKind
     status: FileStatus
+    version: int = 1
+    supersedes_file_id: str | None = None
     metadata: dict = Field(default_factory=dict)
     created_at: datetime
     updated_at: datetime

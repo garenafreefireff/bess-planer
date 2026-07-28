@@ -4,6 +4,7 @@ from fastapi import APIRouter, Query, status
 
 from app.dependencies.authentication import CurrentUserDep
 from app.dependencies.common import PaginationDep
+from app.modules.datasets.enums import DatasetStatus, DatasetType
 from app.modules.datasets.dependencies import DatasetServiceDep
 from app.modules.datasets.schemas import DatasetCreateRequest, DatasetResponse
 from app.shared.schemas.object_id import ObjectIdStr
@@ -28,6 +29,8 @@ async def list_datasets(
     pagination: PaginationDep,
     dataset_service: DatasetServiceDep,
     project_id: Annotated[str | None, Query(pattern=r"^[a-fA-F0-9]{24}$")] = None,
+    dataset_type: DatasetType | None = None,
+    status: DatasetStatus | None = None,
 ) -> PageResponse[DatasetResponse]:
     return await dataset_service.list_datasets(
         current_user.id,
@@ -35,6 +38,8 @@ async def list_datasets(
         page_size=pagination.page_size,
         skip=pagination.skip,
         project_id=project_id,
+        dataset_type=dataset_type,
+        status=status,
     )
 
 
@@ -45,6 +50,15 @@ async def get_dataset(
     dataset_service: DatasetServiceDep,
 ) -> DatasetResponse:
     return await dataset_service.get_dataset(dataset_id, current_user.id)
+
+
+@router.post("/{dataset_id}/activate", response_model=DatasetResponse)
+async def activate_dataset(
+    dataset_id: ObjectIdStr,
+    current_user: CurrentUserDep,
+    dataset_service: DatasetServiceDep,
+) -> DatasetResponse:
+    return await dataset_service.activate_dataset(dataset_id, current_user.id)
 
 
 @router.delete("/{dataset_id}", response_model=MessageResponse)

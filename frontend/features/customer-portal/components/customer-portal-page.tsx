@@ -9,7 +9,6 @@ import {
   ChevronLeft,
   CircleHelp,
   Database,
-  FileBarChart,
   FileText,
   FolderOpen,
   Grid2X2,
@@ -30,6 +29,7 @@ import { authApi } from "@/features/auth/api/auth.api";
 import { PortalAuthGate } from "@/features/auth/components/portal-auth-gate";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { BackendResourcesContent } from "@/features/bess-planner/components/backend-resources-page";
+import { ReportCenterPage } from "@/features/reports/components";
 import { cn } from "@/lib/utils";
 import { OrganizationSection } from "./organization-section";
 import { PortalOverviewDashboard } from "./portal-overview-dashboard";
@@ -144,27 +144,7 @@ function PortalSection({ section }: { section: string }) {
     );
   }
 
-  if (section === "reports") {
-    const reports = [
-      { title: "Báo cáo Quick Sizing", detail: "Quy mô đề xuất, CAPEX, hiệu quả dự án, hiệu quả vốn chủ và dòng tiền sơ bộ.", href: "/quick-sizing/ket-qua", icon: Zap },
-      { title: "Báo cáo BESS Planner", detail: "Khuyến nghị, so sánh phương án, quy mô theo tháng và dữ liệu đầu vào.", href: "/customer-portal/du-an-cua-toi/ket-qua", icon: FileBarChart },
-      { title: "Thư viện báo cáo mẫu", detail: "Xem cấu trúc và nội dung mẫu trước khi triển khai xuất PDF thực tế.", href: "/bao-cao-mau", icon: FileText }
-    ];
-    return (
-      <PortalContent title="Báo cáo" description="Truy cập kết quả hiện có và thư viện báo cáo mẫu.">
-        <div className="grid grid-cols-3 gap-4 max-xl:grid-cols-1">
-          {reports.map(({ title, detail, href, icon: Icon }) => (
-            <Card className="rounded-xl bg-white p-5 shadow-panel" key={title}>
-              <span className="grid size-11 place-items-center rounded-xl bg-blue-50 text-brand-blue"><Icon size={23} /></span>
-              <h2 className="mt-4 text-lg font-bold text-brand-navy">{title}</h2>
-              <p className="mt-2 min-h-[48px] text-sm font-medium leading-6 text-brand-muted">{detail}</p>
-              <Link className="mt-4 flex h-10 items-center justify-center gap-2 rounded-lg bg-brand-blue text-sm font-bold text-white" href={href}>Mở báo cáo<ArrowRight size={16} /></Link>
-            </Card>
-          ))}
-        </div>
-      </PortalContent>
-    );
-  }
+  if (section === "reports") return <ReportCenterPage />;
 
   if (section === "organization") {
     return (
@@ -278,9 +258,9 @@ export function PortalAuthenticatedLayout({ children }: { children: ReactNode })
               <div className="relative h-full w-[min(86vw,300px)] bg-white shadow-2xl"><PortalSidebar activeItem={activeItem} mobile onNavigate={() => setMobileMenuOpen(false)} /></div>
             </div>
           ) : null}
-          <section className="min-w-0 bg-white">
+          <section className="flex min-h-screen min-w-0 flex-col bg-white">
             <PortalTopbar onOpenMenu={() => setMobileMenuOpen(true)} />
-            <div className="w-full px-8 max-sm:px-4">{children}</div>
+            <div className="w-full flex-1 px-8 max-sm:px-4">{children}</div>
             <PortalFooter />
           </section>
         </div>

@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { sizingLabApi } from "../api/sizing-lab.api";
-import { readWorkspaceApiError, type AnalysisRunResponse, type DatasetResponse, type ProjectResponse } from "../api/workspace.api";
+import { readWorkspaceApiError, type AnalysisRunResponse, type DatasetResponse, type ProjectResponse, type WorkspaceFileResponse } from "../api/workspace.api";
 import { isSizingLabResult, type SizingLabResult } from "../data/sizing-lab.types";
 
 export function useSizingLab(projectId: string | null) {
   const [project, setProject] = useState<ProjectResponse | null>(null);
   const [datasets, setDatasets] = useState<DatasetResponse[]>([]);
+  const [files, setFiles] = useState<WorkspaceFileResponse[]>([]);
   const [analysisRun, setAnalysisRun] = useState<AnalysisRunResponse | null>(null);
   const [history, setHistory] = useState<AnalysisRunResponse[]>([]);
   const [result, setResult] = useState<SizingLabResult | null>(null);
@@ -26,6 +27,7 @@ export function useSizingLab(projectId: string | null) {
       const response = await sizingLabApi.load(projectId);
       setProject(response.project);
       setDatasets(response.datasets);
+      setFiles(response.files);
       setAnalysisRun(response.analysisRun);
       setHistory(response.history);
       setResult(response.analysisRun && isSizingLabResult(response.analysisRun.result) ? response.analysisRun.result : null);
@@ -57,5 +59,5 @@ export function useSizingLab(projectId: string | null) {
     }
   }, [projectId]);
 
-  return { project, datasets, analysisRun, history, result, loading, running, error, reload: load, run };
+  return { project, datasets, files, analysisRun, history, result, loading, running, error, reload: load, run };
 }

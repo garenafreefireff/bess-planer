@@ -1,60 +1,22 @@
 ﻿import {
+  ArrowDown,
   BarChart3,
   BatteryCharging,
-  CalendarDays,
-  CheckCircle2,
   CircleDollarSign,
-  Download,
   FileText,
   Gauge,
-  LayoutGrid,
   Lock,
   Scale,
   ShieldCheck,
   Zap
 } from "lucide-react";
-import Image from "next/image";
 import { PublicFooter } from "@/components/layout/public-footer";
 import { PublicHeader } from "@/components/layout/public-header";
 import { LogoStrip } from "@/features/landing/components/logo-strip";
+import { ReportShowcase } from "@/features/report-samples/components/report-showcase";
 import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-
-const reportCards = [
-  {
-    title: "Quick Sizing Summary",
-    text: "Tổng hợp nhanh kết quả sizing và hiệu quả tài chính.",
-    icon: Zap,
-    tone: "blue",
-    image: "/Quick-Sizing-Summary.png",
-    bullets: ["KPI tài chính chính", "Sizing & P_max đề xuất", "Dòng tiền 15 năm"]
-  },
-  {
-    title: "BESS Planner Technical Report",
-    text: "Báo cáo kỹ thuật chi tiết từ BESS Planner về cấu hình và vận hành hệ thống.",
-    icon: LayoutGrid,
-    tone: "green",
-    image: "/BESS-Planner-Technical-Report.png",
-    bullets: ["Cấu hình hệ thống", "Phân tích vận hành", "Kiểm tra ràng buộc kỹ thuật"]
-  },
-  {
-    title: "BESS Finance Dashboard",
-    text: "Dashboard tài chính trực quan cho lãnh đạo và nhà đầu tư.",
-    icon: BarChart3,
-    tone: "purple",
-    image: "/BESS-Finance-Dashboard.png",
-    bullets: ["NPV, IRR, Payback", "Biểu đồ dòng tiền", "So sánh kịch bản"]
-  },
-  {
-    title: "Monthly Sizing & P_max",
-    text: "Sizing & P_max theo tháng phù hợp với biến động phụ tải.",
-    icon: CalendarDays,
-    tone: "orange",
-    image: "/Monthly-Sizing-&-P_max.png",
-    bullets: ["P_max theo tháng", "Khuyến nghị sizing", "Tải trọng & peak shaving"]
-  }
-];
 
 const includedItems = [
   { title: "KPI tài chính", text: "NPV, IRR, Payback, LCOE và các chỉ số đầu tư quan trọng.", icon: CircleDollarSign, tone: "blue" },
@@ -66,40 +28,61 @@ const includedItems = [
   { title: "Trình bày chuyên nghiệp", text: "Bố cục chuẩn, biểu đồ đẹp, dễ đọc và dễ chia sẻ với nội bộ & đối tác.", icon: FileText, tone: "purple" }
 ];
 
+const heroFeatureChips = ["PDF Export", "Executive Summary", "Technical Report", "Finance", "NPV", "CAPEX", "Cash Flow", "KPI"];
+
+const heroMetrics = [
+  { value: "20+", label: "Mẫu chỉ số" },
+  { value: "1 Click", label: "Xuất PDF" },
+  { value: "100%", label: "Đồng bộ dữ liệu" }
+];
+
 export function ReportSamplesPage() {
   return (
     <>
       <PublicHeader activeItem="Báo cáo mẫu" />
       <main>
-        <section className="site-container grid min-h-[286px] grid-cols-[0.76fr_1.24fr] items-center gap-6 py-4 max-lg:grid-cols-1">
-          <div className="max-w-[610px]">
-            <span className="rounded-full bg-green-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-brand-green">Báo cáo mẫu</span>
-            <h1 className="mt-3 text-[40px] font-bold leading-[1.04] tracking-[-0.025em] text-brand-navy max-xl:text-[36px]">
-              Báo cáo mẫu <span className="text-brand-green">BESS</span>
-              <br />
-              cho doanh nghiệp
+        <section className="site-container grid min-h-[220px] grid-cols-[minmax(0,1fr)_360px] items-center gap-12 py-10 max-lg:grid-cols-1 max-lg:gap-8 max-md:py-8">
+          <div className="max-w-[760px]">
+            <span className="inline-flex h-8 items-center rounded-full border border-blue-100 bg-blue-50 px-3 text-[11px] font-bold uppercase tracking-[0.16em] text-brand-blue">Report Library</span>
+            <h1 className="mt-5 max-w-[760px] text-[52px] font-extrabold leading-[1.02] tracking-[-0.025em] text-brand-navy max-xl:text-[46px] max-md:text-[38px] max-sm:text-[32px]">
+              Báo cáo BESS chuyên nghiệp cho doanh nghiệp
             </h1>
-            <p className="mt-3 max-w-[560px] text-[13px] font-semibold leading-[1.65] text-brand-muted">
-              Khám phá các mẫu báo cáo và dashboard chuyên nghiệp được tạo từ Quick Sizing và BESS Planner. Xem trước định dạng, chỉ số và phân tích trước khi bạn bắt đầu tính toán và lập kế hoạch.
+            <p className="mt-4 max-w-[650px] text-[16px] font-semibold leading-7 text-brand-muted max-sm:text-sm max-sm:leading-6">
+              Thư viện báo cáo giúp đội kỹ thuật và lãnh đạo đọc nhanh kết quả sizing, tài chính và vận hành trên cùng một định dạng chuyên nghiệp.
             </p>
-            <div className="mt-4 grid grid-cols-2 gap-6 max-sm:grid-cols-1">
-              <HeroTrust icon={FileText} title="Minh bạch & rõ ràng" text="Báo cáo trực quan, dễ hiểu, phù hợp với mọi đối tượng." tone="blue" />
-              <HeroTrust icon={ShieldCheck} title="Đáng tin cậy" text="Phương pháp tính chuẩn, dữ liệu minh bạch và kiểm tra chặt chẽ." tone="green" />
+            <div className="mt-6 flex flex-wrap gap-3">
+              <a className={buttonVariants({ className: "h-11 rounded-xl px-5 text-sm" })} href="#report-gallery">
+                <ArrowDown size={16} />
+                Xem Report Gallery
+              </a>
+              <a className={buttonVariants({ variant: "secondary", className: "h-11 rounded-xl px-5 text-sm" })} href="/quick-sizing">
+                <Zap size={16} />
+                Dùng thử Quick Sizing
+              </a>
             </div>
-          </div>
-          <ReportHeroPreview />
-        </section>
-
-        <section className="site-container">
-          <Card className="rounded-xl bg-white p-3.5 shadow-none">
-            <h2 className="text-[15px] font-bold text-brand-navy">Danh mục báo cáo mẫu</h2>
-            <div className="mt-4 grid grid-cols-2 items-stretch gap-4 max-lg:grid-cols-1">
-              {reportCards.map((item) => (
-                <ReportCard key={item.title} {...item} />
+            <div className="mt-5 flex max-w-[680px] flex-wrap gap-2">
+              {heroFeatureChips.map((chip) => (
+                <span className="rounded-full border border-brand-line bg-white px-3 py-1.5 text-xs font-bold text-brand-muted shadow-sm" key={chip}>
+                  {chip}
+                </span>
               ))}
             </div>
-          </Card>
+            <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-3">
+              {heroMetrics.map((metric, index) => (
+                <span className="contents" key={metric.label}>
+                  {index > 0 ? <span className="h-9 w-px bg-brand-line max-sm:hidden" /> : null}
+                  <span className="inline-flex items-baseline gap-2">
+                    <strong className="text-[26px] font-extrabold leading-none text-brand-navy">{metric.value}</strong>
+                    <small className="text-xs font-bold uppercase tracking-[0.08em] text-brand-muted">{metric.label}</small>
+                  </span>
+                </span>
+              ))}
+            </div>
+          </div>
+          <ReportHeroIllustration />
         </section>
+
+        <ReportShowcase />
 
         <section className="site-container mt-2.5">
           <Card className="rounded-xl bg-white p-3.5 shadow-none">
@@ -144,89 +127,27 @@ export function ReportSamplesPage() {
   );
 }
 
-function ReportHeroPreview() {
+function ReportHeroIllustration() {
   return (
-    <div className="relative min-h-[278px] overflow-hidden max-md:min-h-0">
-      <div className="pointer-events-none absolute inset-x-[2%] bottom-1 h-20 rounded-[50%] bg-blue-100/35 blur-3xl max-md:hidden" />
-
-      <div className="absolute right-[-2%] top-[34px] z-0 h-[206px] w-[18%] rotate-[8deg] rounded-xl border border-blue-50 bg-white shadow-[0_10px_26px_rgba(15,43,91,0.07)] max-md:hidden" />
-      <div className="absolute right-[2%] top-[24px] z-[1] h-[218px] w-[19%] rotate-[6deg] rounded-xl border border-blue-50 bg-white shadow-[0_10px_28px_rgba(15,43,91,0.08)] max-md:hidden" />
-
-      <img
-        className="absolute left-[1%] top-[7px] z-30 block w-[60%] max-w-none drop-shadow-[0_18px_32px_rgba(15,43,91,0.13)] max-md:relative max-md:left-0 max-md:top-0 max-md:w-full"
-        src="/hero-card-1.png"
-        alt="BESS Project Report executive summary"
-      />
-
-      <img
-        className="absolute left-[56%] top-0 z-20 block w-[34%] max-w-none -rotate-[3deg] drop-shadow-[0_16px_28px_rgba(15,43,91,0.12)] max-md:hidden"
-        src="/hero-card-2.png"
-        alt="Kết quả sizing và P max"
-      />
-
-      <img
-        className="absolute right-[1%] top-[38px] z-10 block w-[25%] max-w-none rotate-[5deg] drop-shadow-[0_14px_24px_rgba(15,43,91,0.10)] max-md:hidden"
-        src="/hero-card-3.png"
-        alt="Phân tích biểu giá và hệ thống"
-      />
-
-      <div className="absolute bottom-[8px] right-[4px] z-40 flex items-center gap-3 rounded-xl border border-brand-line bg-white/95 px-3.5 py-2.5 shadow-[0_10px_24px_rgba(15,43,91,0.11)] backdrop-blur max-md:hidden">
-        <span className="grid size-10 place-items-center rounded-md border-2 border-red-500 text-[10px] font-bold text-red-500">PDF</span>
-        <strong className="text-[11px] leading-4 text-brand-navy">Báo cáo PDF<br />dễ dàng tải về</strong>
-      </div>
-    </div>
-  );
-}
-
-function HeroTrust({ icon: Icon, text, title, tone }: { icon: typeof FileText; text: string; title: string; tone: "blue" | "green" }) {
-  return (
-    <div className="flex gap-3">
-      <Icon className={cn("shrink-0", tone === "green" ? "text-brand-green" : "text-brand-blue")} size={29} />
-      <span>
-        <strong className="block text-[12px] text-brand-navy">{title}</strong>
-        <small className="mt-0.5 block text-[10px] font-semibold leading-4 text-brand-muted">{text}</small>
-      </span>
-    </div>
-  );
-}
-
-function ReportCard({ bullets, icon: Icon, image, text, title, tone }: (typeof reportCards)[number]) {
-  const accent = tone === "green" ? "text-brand-green" : tone === "orange" ? "text-orange-500" : tone === "purple" ? "text-violet-600" : "text-brand-blue";
-  const downloadTone = tone === "green" ? "bg-brand-green hover:bg-brand-green/90" : tone === "orange" ? "bg-orange-500 hover:bg-orange-500/90" : tone === "purple" ? "bg-violet-600 hover:bg-violet-600/90" : "bg-brand-blue hover:bg-brand-blue/90";
-
-  return (
-    <article className="grid h-full grid-rows-[1fr_auto] rounded-xl border border-brand-line bg-white p-4 shadow-sm">
-      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_200px] gap-4 max-xl:grid-cols-[minmax(0,1fr)_174px] max-sm:grid-cols-1">
-        <div className="min-w-0">
-          <h3 className="flex min-w-0 items-center gap-2 text-[14px] font-bold leading-5 text-brand-navy">
-            <Icon className={cn("shrink-0", accent)} size={20} />
-            <span className="min-w-0">{title}</span>
-          </h3>
-          <p className="mt-2 text-[12px] font-semibold leading-5 text-brand-muted">{text}</p>
-          <div className="mt-3 grid gap-1.5">
-            {bullets.map((bullet) => (
-              <span className="flex min-w-0 items-start gap-2 text-[11px] font-semibold leading-4 text-brand-navy" key={bullet}>
-                <CheckCircle2 className={cn("mt-0.5 shrink-0", accent)} size={13} />
-                <span>{bullet}</span>
-              </span>
-            ))}
-          </div>
+    <div className="relative mx-auto h-[220px] w-full max-w-[360px] max-lg:h-[190px] max-lg:max-w-[320px] max-sm:hidden">
+      <div className="absolute inset-x-8 bottom-0 h-12 rounded-[50%] bg-blue-100/60 blur-2xl" />
+      <div className="absolute left-8 top-10 h-[150px] w-[210px] rotate-[-8deg] rounded-[18px] border border-[#E8EEF7] bg-white shadow-[0_18px_48px_rgba(15,43,91,0.10)]" />
+      <div className="absolute right-6 top-7 h-[158px] w-[220px] rotate-[7deg] rounded-[18px] border border-[#E8EEF7] bg-white shadow-[0_18px_48px_rgba(15,43,91,0.10)]" />
+      <div className="absolute left-1/2 top-1 h-[180px] w-[242px] -translate-x-1/2 rounded-[22px] border border-blue-100 bg-white p-5 shadow-[0_24px_70px_rgba(15,43,91,0.14)]">
+        <div className="flex items-center justify-between">
+          <span className="rounded-md border border-red-100 bg-red-50 px-2 py-1 text-[10px] font-extrabold text-red-500">PDF</span>
+          <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-300">EnergyInsight</span>
         </div>
-        <a className="flex aspect-[4/3] w-full min-w-0 max-w-[210px] items-center justify-center justify-self-end rounded-lg border border-brand-line bg-slate-50 p-2 transition hover:border-brand-blue/30 max-sm:max-w-none" href={image} target="_blank" rel="noreferrer">
-          <Image className="h-full w-full rounded-md object-contain" src={image} alt={`${title} preview`} width={320} height={240} loading="lazy" />
-        </a>
+        <div className="mt-5 h-3 w-28 rounded-full bg-brand-navy/85" />
+        <div className="mt-3 h-2 w-40 rounded-full bg-slate-200" />
+        <div className="mt-2 h-2 w-32 rounded-full bg-slate-200" />
+        <div className="mt-7 grid grid-cols-3 gap-2">
+          <div className="h-10 rounded-xl bg-blue-50" />
+          <div className="h-10 rounded-xl bg-green-50" />
+          <div className="h-10 rounded-xl bg-violet-50" />
+        </div>
       </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-2 border-t border-brand-line pt-3 max-[420px]:grid-cols-1">
-        <a className={buttonVariants({ variant: "secondary", size: "sm", className: "h-9 min-w-0 justify-center px-3 text-xs" })} href={image} target="_blank" rel="noreferrer">
-          Xem mẫu
-        </a>
-        <a className={buttonVariants({ size: "sm", className: cn("h-9 min-w-0 justify-center gap-1.5 px-3 text-xs text-white", downloadTone) })} href={image} download>
-          <Download className="shrink-0" size={14} />
-          <span>Tải mẫu PDF</span>
-        </a>
-      </div>
-    </article>
+    </div>
   );
 }
 

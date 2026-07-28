@@ -2,13 +2,13 @@ from typing import Annotated
 
 from urllib.parse import quote
 
-from fastapi import APIRouter, File, Form, UploadFile, status
+from fastapi import APIRouter, File, Form, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
 
 from app.dependencies.authentication import CurrentUserDep
 from app.dependencies.common import PaginationDep
 from app.modules.files.dependencies import FileServiceDep
-from app.modules.files.enums import FileKind
+from app.modules.files.enums import FileKind, FileStatus
 from app.modules.files.schemas import FileResponse
 from app.shared.schemas.object_id import ObjectIdStr
 from app.shared.schemas.pagination import PageResponse
@@ -38,12 +38,18 @@ async def list_files(
     current_user: CurrentUserDep,
     pagination: PaginationDep,
     file_service: FileServiceDep,
+    project_id: Annotated[str | None, Query(pattern=r"^[a-fA-F0-9]{24}$")] = None,
+    kind: FileKind | None = None,
+    status: FileStatus | None = None,
 ) -> PageResponse[FileResponse]:
     return await file_service.list_files(
         current_user.id,
         page=pagination.page,
         page_size=pagination.page_size,
         skip=pagination.skip,
+        project_id=project_id,
+        kind=kind,
+        status=status,
     )
 
 

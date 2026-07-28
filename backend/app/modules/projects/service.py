@@ -40,6 +40,8 @@ class ProjectService:
             name=payload.name,
             project_type=payload.project_type,
             status=payload.status,
+            active_load_dataset_id=payload.active_load_dataset_id,
+            active_pv_dataset_id=payload.active_pv_dataset_id,
             configuration=payload.configuration,
             scenarios=payload.scenarios,
             dataset_ids=payload.dataset_ids,

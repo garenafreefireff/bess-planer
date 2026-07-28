@@ -14,6 +14,8 @@ REFERENCE_FIELDS = {
     "site_id",
     "bess_catalog_id",
     "latest_analysis_run_id",
+    "active_load_dataset_id",
+    "active_pv_dataset_id",
 }
 
 
@@ -202,6 +204,30 @@ class ProjectRepository:
             {
                 "$addToSet": {"dataset_ids": _object_id(dataset_id)},
                 "$set": {"updated_at": utc_now()},
+            },
+            return_document=ReturnDocument.AFTER,
+        )
+        normalized = _normalize_document_id(document)
+        return ProjectDocument.model_validate(normalized) if normalized else None
+
+    async def set_active_dataset_for_user(
+        self,
+        project_id: str,
+        user_id: str,
+        *,
+        field_name: str,
+        dataset_id: str | None,
+    ) -> ProjectDocument | None:
+        document = await self.collection.find_one_and_update(
+            {
+                "_id": _object_id(project_id),
+                "user_id": _object_id(user_id),
+            },
+            {
+                "$set": {
+                    field_name: _object_id(dataset_id) if dataset_id else None,
+                    "updated_at": utc_now(),
+                },
             },
             return_document=ReturnDocument.AFTER,
         )

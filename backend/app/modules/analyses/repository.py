@@ -100,3 +100,28 @@ class AnalysisRepository:
         )
         normalized = _normalize_document_id(document)
         return AnalysisRunDocument.model_validate(normalized) if normalized else None
+
+    async def count_references_dataset_for_user(self, dataset_id: str, user_id: str) -> int:
+        return await self.collection.count_documents(
+            {
+                "user_id": _object_id(user_id),
+                "$or": [
+                    {"input_snapshot.dataset_ids": dataset_id},
+                    {"input_snapshot.active_datasets.load_profile.dataset_id": dataset_id},
+                    {"input_snapshot.active_datasets.pv_profile.dataset_id": dataset_id},
+                ],
+            }
+        )
+
+    async def count_references_file_for_user(self, file_id: str, user_id: str) -> int:
+        return await self.collection.count_documents(
+            {
+                "user_id": _object_id(user_id),
+                "$or": [
+                    {"input_snapshot.active_datasets.load_profile.file_id": file_id},
+                    {"input_snapshot.active_datasets.pv_profile.file_id": file_id},
+                    {"input_snapshot.files.load_profile.file_id": file_id},
+                    {"input_snapshot.files.pv_profile.file_id": file_id},
+                ],
+            }
+        )

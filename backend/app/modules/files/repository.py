@@ -6,8 +6,9 @@ from pymongo import ReturnDocument
 
 from app.core.security import utc_now
 from app.models.file import FileDocument
+from app.modules.files.enums import FileKind, FileStatus
 
-REFERENCE_FIELDS = {"user_id", "project_id"}
+REFERENCE_FIELDS = {"user_id", "project_id", "supersedes_file_id"}
 
 
 def _object_id(value: str) -> ObjectId:
@@ -29,8 +30,26 @@ def _normalize_document_id(document: dict[str, Any] | None) -> dict[str, Any] | 
 def _to_mongo(file_document: FileDocument) -> dict[str, Any]:
     payload = file_document.model_dump(by_alias=True, exclude={"id"})
     for field in REFERENCE_FIELDS:
-        payload[field] = _object_id(payload[field])
+        if payload.get(field) is not None:
+            payload[field] = _object_id(payload[field])
     return payload
+
+
+def _user_query(
+    user_id: str,
+    *,
+    project_id: str | None = None,
+    kind: FileKind | None = None,
+    status: FileStatus | None = None,
+) -> dict[str, Any]:
+    query: dict[str, Any] = {"user_id": _object_id(user_id)}
+    if project_id:
+        query["project_id"] = _object_id(project_id)
+    if kind is not None:
+        query["kind"] = kind.value
+    if status is not None:
+        query["status"] = status.value
+    return query
 
 
 class FileRepository:
@@ -42,12 +61,30 @@ class FileRepository:
         created = await self.collection.find_one({"_id": result.inserted_id})
         return FileDocument.model_validate(_normalize_document_id(created))
 
-    async def count_by_user(self, user_id: str) -> int:
-        return await self.collection.count_documents({"user_id": _object_id(user_id)})
+    async def count_by_user(
+        self,
+        user_id: str,
+        *,
+        project_id: str | None = None,
+        kind: FileKind | None = None,
+        status: FileStatus | None = None,
+    ) -> int:
+        return await self.collection.count_documents(
+            _user_query(user_id, project_id=project_id, kind=kind, status=status)
+        )
 
-    async def list_by_user(self, user_id: str, *, skip: int, limit: int) -> list[FileDocument]:
+    async def list_by_user(
+        self,
+        user_id: str,
+        *,
+        skip: int,
+        limit: int,
+        project_id: str | None = None,
+        kind: FileKind | None = None,
+        status: FileStatus | None = None,
+    ) -> list[FileDocument]:
         cursor = (
-            self.collection.find({"user_id": _object_id(user_id)})
+            self.collection.find(_user_query(user_id, project_id=project_id, kind=kind, status=status))
             .sort("updated_at", -1)
             .skip(skip)
             .limit(limit)
@@ -60,10 +97,49 @@ class FileRepository:
         project_id: str,
         user_id: str,
     ) -> list[FileDocument]:
-        documents = await self.collection.find(
+        cursor = self.collection.find(
             {"project_id": _object_id(project_id), "user_id": _object_id(user_id)}
-        ).to_list(length=None)
+        ).sort([("kind", 1), ("version", -1), ("updated_at", -1)])
+        documents = await cursor.to_list(length=None)
         return [FileDocument.model_validate(_normalize_document_id(item)) for item in documents]
+
+    async def get_existing_by_hash_for_user(
+        self,
+        *,
+        user_id: str,
+        project_id: str,
+        kind: FileKind,
+        sha256_hash: str,
+    ) -> FileDocument | None:
+        document = await self.collection.find_one(
+            {
+                "user_id": _object_id(user_id),
+                "project_id": _object_id(project_id),
+                "kind": kind.value,
+                "sha256": sha256_hash,
+            },
+            sort=[("version", -1), ("updated_at", -1)],
+        )
+        normalized = _normalize_document_id(document)
+        return FileDocument.model_validate(normalized) if normalized else None
+
+    async def get_latest_by_project_kind_for_user(
+        self,
+        *,
+        user_id: str,
+        project_id: str,
+        kind: FileKind,
+    ) -> FileDocument | None:
+        document = await self.collection.find_one(
+            {
+                "user_id": _object_id(user_id),
+                "project_id": _object_id(project_id),
+                "kind": kind.value,
+            },
+            sort=[("version", -1), ("updated_at", -1)],
+        )
+        normalized = _normalize_document_id(document)
+        return FileDocument.model_validate(normalized) if normalized else None
 
     async def delete_by_project_for_user(self, project_id: str, user_id: str) -> None:
         await self.collection.delete_many(

@@ -13,14 +13,16 @@ export type BackendProjectInfoValue = {
   bessCatalogId: string;
 };
 
-export function ProjectBackendInfoStep({ value, onChange, sites, catalogItems, loading }: {
+export function ProjectBackendInfoStep({ value, onCatalogChange, onChange, sites, catalogItems, loading }: {
   value: BackendProjectInfoValue;
+  onCatalogChange?: (value: string) => void;
   onChange: (value: BackendProjectInfoValue) => void;
   sites: SiteResponse[];
   catalogItems: BessCatalogResponse[];
   loading: boolean;
 }) {
   const selectedSite = sites.find((site) => site.id === value.siteId);
+  const selectedCatalog = catalogItems.find((catalog) => catalog.id === value.bessCatalogId);
   const chooseSite = (siteId: string) => {
     const site = sites.find((item) => item.id === siteId);
     onChange({
@@ -29,6 +31,13 @@ export function ProjectBackendInfoStep({ value, onChange, sites, catalogItems, l
       location: readLocationLabel(site?.location) || value.location,
       voltageLevel: site?.voltage_level || value.voltageLevel
     });
+  };
+  const chooseCatalog = (bessCatalogId: string) => {
+    if (onCatalogChange) {
+      onCatalogChange(bessCatalogId);
+      return;
+    }
+    onChange({ ...value, bessCatalogId });
   };
 
   return (
@@ -49,8 +58,8 @@ export function ProjectBackendInfoStep({ value, onChange, sites, catalogItems, l
         <BackendSelect
           disabled={loading}
           label="Cấu hình BESS"
-          onChange={(bessCatalogId) => onChange({ ...value, bessCatalogId })}
-          options={catalogItems.map((item) => ({ label: `${item.name} · v${item.version}`, value: item.id }))}
+          onChange={chooseCatalog}
+          options={catalogItems.map((item) => ({ label: formatCatalogOptionLabel(item), value: item.id }))}
           placeholder={loading ? "Đang tải cấu hình..." : catalogItems.length ? "Chọn cấu hình BESS" : "Chưa có cấu hình BESS khả dụng"}
           value={value.bessCatalogId}
         />
@@ -68,6 +77,11 @@ export function ProjectBackendInfoStep({ value, onChange, sites, catalogItems, l
       {selectedSite ? (
         <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-medium text-brand-muted">
           Địa điểm đã chọn: <strong className="text-brand-navy">{selectedSite.name}</strong> · Công suất hợp đồng {formatNumber(selectedSite.contract_capacity_kw, 0)} kW.
+        </div>
+      ) : null}
+      {selectedCatalog ? (
+        <div className="mt-3 rounded-lg border border-green-100 bg-green-50 px-4 py-3 text-sm font-medium text-brand-muted">
+          Cấu hình BESS đã chọn: <strong className="text-brand-navy">{selectedCatalog.name}</strong> · {formatCatalogSummary(selectedCatalog)}.
         </div>
       ) : null}
     </section>
@@ -97,4 +111,33 @@ function readLocationLabel(location?: Record<string, unknown>) {
   if (!location) return "";
   const candidates = [location.address, location.city, location.province, location.name];
   return candidates.filter((item): item is string => typeof item === "string" && item.trim().length > 0).join(", ");
+}
+
+function formatCatalogOptionLabel(item: BessCatalogResponse) {
+  const energyKwh = readCatalogNumber(item.battery, "energy_kwh");
+  const powerKw = readCatalogNumber(item.pcs, "power_kw");
+  if (energyKwh !== null && powerKw !== null) {
+    return `${item.name} · ${formatNumber(powerKw, 0)} kW / ${formatNumber(energyKwh, 0)} kWh · v${item.version}`;
+  }
+  return `${item.name} · v${item.version}`;
+}
+
+function formatCatalogSummary(item: BessCatalogResponse) {
+  const energyKwh = readCatalogNumber(item.battery, "energy_kwh");
+  const powerKw = readCatalogNumber(item.pcs, "power_kw");
+  const batteryCost = readCatalogNumber(item.cost, "battery_unit_cost_per_kwh");
+  const pcsCost = readCatalogNumber(item.cost, "pcs_unit_cost_per_kw");
+  const currency = typeof item.cost?.currency === "string" && item.cost.currency ? item.cost.currency : "VND";
+  const sizing = energyKwh !== null && powerKw !== null
+    ? `${formatNumber(powerKw, 0)} kW / ${formatNumber(energyKwh, 0)} kWh`
+    : "chưa có thông số sizing";
+  const cost = batteryCost !== null && pcsCost !== null
+    ? `pin ${formatNumber(batteryCost, 0)} ${currency}/kWh, PCS ${formatNumber(pcsCost, 0)} ${currency}/kW`
+    : "chưa có catalog chi phí";
+  return `${sizing} · ${cost}`;
+}
+
+function readCatalogNumber(source: Record<string, unknown> | undefined, key: string) {
+  const value = source?.[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }

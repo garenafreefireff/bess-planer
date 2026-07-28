@@ -11,6 +11,9 @@ from app.core.exceptions import AppError, NotFoundError
 from app.core.security import utc_now
 from app.dependencies.storage import StorageClient
 from app.models.analysis_run import AnalysisRunDocument
+from app.models.dataset import DatasetDocument
+from app.models.file import FileDocument
+from app.models.project import ProjectDocument
 from app.modules.analyses.engine.bess_planner.optimizer import BessPlannerOptimizer
 from app.modules.analyses.engine.quick_sizing.calculator import QuickSizingCalculator
 from app.modules.analyses.enums import AnalysisRunStatus, AnalysisType
@@ -22,6 +25,7 @@ from app.modules.analyses.schemas import (
     BessPlannerAnalysisRequest,
     QuickSizingStep1Request,
 )
+from app.modules.datasets.enums import DatasetStatus, DatasetType
 from app.modules.datasets.repository import DatasetRepository
 from app.modules.files.repository import FileRepository
 from app.modules.projects.repository import ProjectRepository
@@ -142,6 +146,35 @@ async def _read_transient_upload(
     return content, original_name
 
 
+def _dataset_input_snapshot(
+    dataset: DatasetDocument,
+    file_document: FileDocument,
+    *,
+    source: str,
+) -> dict[str, Any]:
+    return {
+        "source": source,
+        "dataset_id": dataset.id,
+        "dataset_type": dataset.dataset_type.value,
+        "dataset_version": dataset.version,
+        "dataset_status": dataset.status.value,
+        "file_id": file_document.id,
+        "file_name": file_document.original_name,
+        "file_version": file_document.version,
+        "sha256": file_document.sha256,
+        "sha256_short": file_document.sha256[:12],
+        "file_status": file_document.status.value,
+        "rows": dataset.row_count,
+        "valid_rows": dataset.valid_row_count,
+        "interval_minutes": dataset.interval_minutes,
+        "start_at": dataset.start_at.isoformat() if dataset.start_at else None,
+        "end_at": dataset.end_at.isoformat() if dataset.end_at else None,
+        "uploaded_at": file_document.created_at.isoformat(),
+        "dataset_created_at": dataset.created_at.isoformat(),
+        "dataset_updated_at": dataset.updated_at.isoformat(),
+    }
+
+
 class AnalysisService:
     def __init__(
         self,
@@ -227,6 +260,16 @@ class AnalysisService:
         project = await self.project_repository.get_by_id_for_user(payload.project_id, user_id)
         if project is None:
             raise NotFoundError("Project not found.")
+        return await self._create_bess_planner_run_from_active_datasets(project, user_id)
+
+    async def _create_bess_planner_run_legacy_all_datasets(
+        self,
+        payload: BessPlannerAnalysisRequest,
+        user_id: str,
+    ) -> AnalysisRunResponse:
+        project = await self.project_repository.get_by_id_for_user(payload.project_id, user_id)
+        if project is None:
+            raise NotFoundError("Project not found.")
 
         datasets = await self.dataset_repository.list_by_user(
             user_id,
@@ -290,8 +333,194 @@ class AnalysisService:
                 project.id,
                 user_id,
                 {"latest_analysis_run_id": created.id, "status": "completed"},
+        )
+        return self._to_response(created)
+
+    async def _create_bess_planner_run_from_active_datasets(
+        self,
+        project: ProjectDocument,
+        user_id: str,
+    ) -> AnalysisRunResponse:
+        if project.id is None:
+            raise AppError("Project is missing an identifier.", code="project_id_missing")
+
+        load_dataset, load_source = await self._resolve_analysis_dataset(
+            project,
+            user_id,
+            DatasetType.LOAD_PROFILE,
+            required=True,
+        )
+        pv_dataset, pv_source = await self._resolve_analysis_dataset(
+            project,
+            user_id,
+            DatasetType.PV_PROFILE,
+            required=False,
+        )
+        if load_dataset is None:
+            raise AppError(
+                "Can co dataset phu tai truoc khi bat dau Sizing Lab.",
+                code="load_dataset_required",
+            )
+
+        load_snapshot, load_input_snapshot = await self._build_analysis_dataset_snapshot(
+            load_dataset,
+            user_id,
+            source=load_source,
+        )
+        dataset_snapshots = [load_snapshot]
+        active_datasets: dict[str, Any] = {"load_profile": load_input_snapshot}
+
+        if pv_dataset is not None:
+            pv_snapshot, pv_input_snapshot = await self._build_analysis_dataset_snapshot(
+                pv_dataset,
+                user_id,
+                source=pv_source,
+            )
+            dataset_snapshots.append(pv_snapshot)
+            active_datasets["pv_profile"] = pv_input_snapshot
+        else:
+            active_datasets["pv_profile"] = {
+                "source": "load_profile_combined_or_zero_pv",
+                "load_dataset_id": load_dataset.id,
+                "file_id": load_input_snapshot["file_id"],
+                "file_name": load_input_snapshot["file_name"],
+                "file_version": load_input_snapshot["file_version"],
+                "dataset_version": load_input_snapshot["dataset_version"],
+                "sha256": load_input_snapshot["sha256"],
+                "status": "implicit_optional",
+                "note": "No active PV dataset; optimizer will use P_pv_kW from the load file when present.",
+            }
+
+        started_at = utc_now()
+        result = await _run_analysis_thread(
+            self.settings,
+            _run_optimizer_with_materialized_files,
+            self.storage_client,
+            self.bess_planner_optimizer,
+            project.configuration,
+            dataset_snapshots,
+        )
+        completed_at = utc_now()
+        analysis_run = AnalysisRunDocument(
+            user_id=user_id,
+            project_id=project.id,
+            bess_catalog_id=project.bess_catalog_id,
+            analysis_type=AnalysisType.BESS_PLANNER,
+            status=AnalysisRunStatus.COMPLETED,
+            progress_pct=100,
+            input_snapshot={
+                "project_id": project.id,
+                "bess_catalog_id": project.bess_catalog_id,
+                "configuration": project.configuration,
+                "effective_ems_parity": result.get("parity"),
+                "input_mode": "persistent_project_datasets",
+                "active_datasets": active_datasets,
+                "files": {
+                    "load_profile": active_datasets["load_profile"],
+                    "pv_profile": active_datasets["pv_profile"],
+                },
+                "dataset_ids": [
+                    dataset.id
+                    for dataset in (load_dataset, pv_dataset)
+                    if dataset is not None and dataset.id is not None
+                ],
+                "project_dataset_ids": project.dataset_ids,
+            },
+            result=result,
+            artifacts={},
+            engine_version=self.bess_planner_optimizer.engine_version,
+            error=None,
+            started_at=started_at,
+            completed_at=completed_at,
+        )
+        created = await self.analysis_repository.create_analysis_run(analysis_run)
+        if created.id is not None:
+            await self.project_repository.update_by_id_for_user(
+                project.id,
+                user_id,
+                {"latest_analysis_run_id": created.id, "status": "completed"},
             )
         return self._to_response(created)
+
+    async def _resolve_analysis_dataset(
+        self,
+        project: ProjectDocument,
+        user_id: str,
+        dataset_type: DatasetType,
+        *,
+        required: bool,
+    ) -> tuple[DatasetDocument | None, str]:
+        if project.id is None:
+            raise AppError("Project is missing an identifier.", code="project_id_missing")
+        active_id = (
+            project.active_load_dataset_id
+            if dataset_type == DatasetType.LOAD_PROFILE
+            else project.active_pv_dataset_id
+        )
+        if active_id:
+            dataset = await self.dataset_repository.get_by_id_for_user(active_id, user_id)
+            if (
+                dataset is None
+                or dataset.project_id != project.id
+                or dataset.dataset_type != dataset_type
+            ):
+                raise AppError(
+                    f"Active {dataset_type.value} dataset is missing or not linked to this project.",
+                    code="active_dataset_missing",
+                )
+            if dataset.status not in {DatasetStatus.READY, DatasetStatus.WARNING}:
+                raise AppError(
+                    f"Active {dataset_type.value} dataset is invalid.",
+                    code="active_dataset_invalid",
+                )
+            return dataset, "project_active"
+
+        fallback = await self.dataset_repository.get_latest_valid_by_project_type_for_user(
+            project_id=project.id,
+            user_id=user_id,
+            dataset_type=dataset_type,
+        )
+        if fallback is not None and fallback.id is not None:
+            field_name = (
+                "active_load_dataset_id"
+                if dataset_type == DatasetType.LOAD_PROFILE
+                else "active_pv_dataset_id"
+            )
+            await self.project_repository.set_active_dataset_for_user(
+                project.id,
+                user_id,
+                field_name=field_name,
+                dataset_id=fallback.id,
+            )
+            return fallback, "legacy_latest_valid"
+
+        if required:
+            raise AppError(
+                "Can co dataset phu tai truoc khi bat dau Sizing Lab.",
+                code="load_dataset_required",
+            )
+        return None, "not_provided"
+
+    async def _build_analysis_dataset_snapshot(
+        self,
+        dataset: DatasetDocument,
+        user_id: str,
+        *,
+        source: str,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        source_file = await self.file_repository.get_by_id_for_user(dataset.file_id, user_id)
+        if source_file is None or source_file.project_id != dataset.project_id:
+            raise NotFoundError("Dataset source file not found.")
+
+        optimizer_snapshot = dataset.model_dump(mode="json")
+        optimizer_snapshot["storage_path"] = source_file.storage_path
+        optimizer_snapshot["original_name"] = source_file.original_name
+        optimizer_snapshot["file_id"] = source_file.id
+        optimizer_snapshot["file_version"] = source_file.version
+        optimizer_snapshot["sha256"] = source_file.sha256
+
+        input_snapshot = _dataset_input_snapshot(dataset, source_file, source=source)
+        return optimizer_snapshot, input_snapshot
 
     async def create_transient_bess_planner_run(
         self,

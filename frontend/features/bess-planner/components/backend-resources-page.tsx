@@ -37,7 +37,29 @@ const initialSite = {
   contractCapacityKw: 1000
 };
 
-const initialCatalog = { code: "", name: "", version: 1 };
+const initialCatalog = {
+  code: "",
+  name: "",
+  version: 1,
+  batteryEnergyKwh: 1000,
+  batteryNominalVoltageV: 800,
+  batteryDodPct: 90,
+  batteryRtePct: 90,
+  batteryDegradationPctPerYear: 2,
+  batteryCycleLife: 6000,
+  pcsPowerKw: 500,
+  pcsEfficiencyPct: 95,
+  pcsAcVoltageV: 400,
+  pcsOverloadPct: 110,
+  batteryUnitCost: 5_000_000,
+  pcsUnitCost: 4_000_000,
+  epcPct: 0,
+  otherCostPct: 0,
+  annualOpexPct: 2,
+  warrantyYears: 10,
+  capacityRetentionPct: 70,
+  cycleWarranty: 6000
+};
 
 export function BackendResourcesContent() {
   const [tariffs, setTariffs] = useState<TariffResponse[]>([]);
@@ -140,10 +162,33 @@ export function BackendResourcesContent() {
       const created = await bessCatalogApi.create({
         code: catalogForm.code,
         name: catalogForm.name,
-        battery: {},
-        pcs: {},
-        cost: {},
-        warranty: {},
+        battery: {
+          energy_kwh: catalogForm.batteryEnergyKwh,
+          nominal_voltage_v: catalogForm.batteryNominalVoltageV,
+          dod_pct: catalogForm.batteryDodPct,
+          round_trip_efficiency_pct: catalogForm.batteryRtePct,
+          degradation_pct_per_year: catalogForm.batteryDegradationPctPerYear,
+          cycle_life: catalogForm.batteryCycleLife
+        },
+        pcs: {
+          power_kw: catalogForm.pcsPowerKw,
+          efficiency_pct: catalogForm.pcsEfficiencyPct,
+          ac_voltage_v: catalogForm.pcsAcVoltageV,
+          overload_pct: catalogForm.pcsOverloadPct
+        },
+        cost: {
+          currency: "VND",
+          battery_unit_cost_per_kwh: catalogForm.batteryUnitCost,
+          pcs_unit_cost_per_kw: catalogForm.pcsUnitCost,
+          epc_pct: catalogForm.epcPct,
+          other_cost_pct: catalogForm.otherCostPct,
+          annual_opex_pct: catalogForm.annualOpexPct
+        },
+        warranty: {
+          years: catalogForm.warrantyYears,
+          capacity_retention_pct: catalogForm.capacityRetentionPct,
+          cycle_warranty: catalogForm.cycleWarranty
+        },
         version: catalogForm.version,
         status: "active"
       });
@@ -253,14 +298,40 @@ export function BackendResourcesContent() {
             </ResourceSection>
 
             <ResourceSection icon={BatteryCharging} title="Danh mục cấu hình BESS" count={catalogs.length} form={
-              <form className="grid grid-cols-4 gap-3 max-xl:grid-cols-2 max-md:grid-cols-1" onSubmit={createCatalog}>
-                <TextInput label="Mã cấu hình" value={catalogForm.code} onChange={(code) => setCatalogForm({ ...catalogForm, code })} />
-                <TextInput label="Tên cấu hình" value={catalogForm.name} onChange={(name) => setCatalogForm({ ...catalogForm, name })} />
-                <NumberInput label="Phiên bản" value={catalogForm.version} onChange={(version) => setCatalogForm({ ...catalogForm, version })} />
-                <SubmitButton busy={busyKey === "create-catalog"} label="Tạo cấu hình" />
+              <form className="grid gap-4" onSubmit={createCatalog}>
+                <div className="grid grid-cols-4 gap-3 max-xl:grid-cols-2 max-md:grid-cols-1">
+                  <TextInput label="Mã cấu hình" value={catalogForm.code} onChange={(code) => setCatalogForm({ ...catalogForm, code })} />
+                  <TextInput label="Tên cấu hình" value={catalogForm.name} onChange={(name) => setCatalogForm({ ...catalogForm, name })} />
+                  <NumberInput label="Phiên bản" value={catalogForm.version} onChange={(version) => setCatalogForm({ ...catalogForm, version })} />
+                  <SubmitButton busy={busyKey === "create-catalog"} label="Tạo cấu hình" />
+                </div>
+                <CatalogFieldset title="Pin DC">
+                  <NumberInput label="Dung lượng danh định (kWh)" value={catalogForm.batteryEnergyKwh} onChange={(batteryEnergyKwh) => setCatalogForm({ ...catalogForm, batteryEnergyKwh })} />
+                  <NumberInput label="Điện áp danh định (V)" value={catalogForm.batteryNominalVoltageV} onChange={(batteryNominalVoltageV) => setCatalogForm({ ...catalogForm, batteryNominalVoltageV })} />
+                  <NumberInput label="DoD (%)" value={catalogForm.batteryDodPct} onChange={(batteryDodPct) => setCatalogForm({ ...catalogForm, batteryDodPct })} />
+                  <NumberInput label="RTE (%)" value={catalogForm.batteryRtePct} onChange={(batteryRtePct) => setCatalogForm({ ...catalogForm, batteryRtePct })} />
+                  <NumberInput label="Suy hao (%/năm)" value={catalogForm.batteryDegradationPctPerYear} onChange={(batteryDegradationPctPerYear) => setCatalogForm({ ...catalogForm, batteryDegradationPctPerYear })} />
+                  <NumberInput label="Vòng đời chu kỳ" value={catalogForm.batteryCycleLife} onChange={(batteryCycleLife) => setCatalogForm({ ...catalogForm, batteryCycleLife })} />
+                </CatalogFieldset>
+                <CatalogFieldset title="PCS">
+                  <NumberInput label="Công suất AC (kW)" value={catalogForm.pcsPowerKw} onChange={(pcsPowerKw) => setCatalogForm({ ...catalogForm, pcsPowerKw })} />
+                  <NumberInput label="Hiệu suất PCS (%)" value={catalogForm.pcsEfficiencyPct} onChange={(pcsEfficiencyPct) => setCatalogForm({ ...catalogForm, pcsEfficiencyPct })} />
+                  <NumberInput label="Điện áp AC (V)" value={catalogForm.pcsAcVoltageV} onChange={(pcsAcVoltageV) => setCatalogForm({ ...catalogForm, pcsAcVoltageV })} />
+                  <NumberInput label="Quá tải cho phép (%)" value={catalogForm.pcsOverloadPct} onChange={(pcsOverloadPct) => setCatalogForm({ ...catalogForm, pcsOverloadPct })} />
+                </CatalogFieldset>
+                <CatalogFieldset title="Chi phí và bảo hành">
+                  <NumberInput label="Chi phí pin (VND/kWh)" value={catalogForm.batteryUnitCost} onChange={(batteryUnitCost) => setCatalogForm({ ...catalogForm, batteryUnitCost })} />
+                  <NumberInput label="Chi phí PCS (VND/kW)" value={catalogForm.pcsUnitCost} onChange={(pcsUnitCost) => setCatalogForm({ ...catalogForm, pcsUnitCost })} />
+                  <NumberInput label="EPC tổng hợp (%)" value={catalogForm.epcPct} onChange={(epcPct) => setCatalogForm({ ...catalogForm, epcPct })} />
+                  <NumberInput label="Chi phí khác (%)" value={catalogForm.otherCostPct} onChange={(otherCostPct) => setCatalogForm({ ...catalogForm, otherCostPct })} />
+                  <NumberInput label="OPEX hằng năm (%)" value={catalogForm.annualOpexPct} onChange={(annualOpexPct) => setCatalogForm({ ...catalogForm, annualOpexPct })} />
+                  <NumberInput label="Bảo hành (năm)" value={catalogForm.warrantyYears} onChange={(warrantyYears) => setCatalogForm({ ...catalogForm, warrantyYears })} />
+                  <NumberInput label="Dung lượng giữ lại (%)" value={catalogForm.capacityRetentionPct} onChange={(capacityRetentionPct) => setCatalogForm({ ...catalogForm, capacityRetentionPct })} />
+                  <NumberInput label="Bảo hành chu kỳ" value={catalogForm.cycleWarranty} onChange={(cycleWarranty) => setCatalogForm({ ...catalogForm, cycleWarranty })} />
+                </CatalogFieldset>
               </form>
             }>
-              <ResourceTable rows={catalogs.map((item) => ({ id: item.id, name: item.name, detail: `${item.code} · version ${item.version}`, status: item.status, busy: busyKey === `catalog-${item.id}`, onToggle: () => void toggleCatalog(item), onDelete: () => void removeCatalog(item) }))} />
+              <ResourceTable rows={catalogs.map((item) => ({ id: item.id, name: item.name, detail: formatCatalogDetail(item), status: item.status, busy: busyKey === `catalog-${item.id}`, onToggle: () => void toggleCatalog(item), onDelete: () => void removeCatalog(item) }))} />
             </ResourceSection>
 
             <ResourceSection icon={FileBarChart} title="Lịch sử phân tích" count={analyses.length}>
@@ -270,6 +341,34 @@ export function BackendResourcesContent() {
         )}
     </main>
   );
+}
+
+function CatalogFieldset({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <fieldset className="rounded-xl border border-brand-line bg-white p-4">
+      <legend className="px-2 text-sm font-bold text-brand-navy">{title}</legend>
+      <div className="grid grid-cols-4 gap-3 max-xl:grid-cols-2 max-md:grid-cols-1">{children}</div>
+    </fieldset>
+  );
+}
+
+function formatCatalogDetail(item: BessCatalogResponse) {
+  const energyKwh = readCatalogNumber(item.battery, "energy_kwh");
+  const powerKw = readCatalogNumber(item.pcs, "power_kw");
+  const batteryCost = readCatalogNumber(item.cost, "battery_unit_cost_per_kwh");
+  const pcsCost = readCatalogNumber(item.cost, "pcs_unit_cost_per_kw");
+  const sizingLabel = energyKwh !== null && powerKw !== null
+    ? `${powerKw.toLocaleString("vi-VN")} kW / ${energyKwh.toLocaleString("vi-VN")} kWh`
+    : "chưa có thông số sizing";
+  const costLabel = batteryCost !== null && pcsCost !== null
+    ? `pin ${batteryCost.toLocaleString("vi-VN")} / PCS ${pcsCost.toLocaleString("vi-VN")}`
+    : "chưa có catalog chi phí";
+  return `${item.code} · version ${item.version} · ${sizingLabel} · ${costLabel}`;
+}
+
+function readCatalogNumber(source: Record<string, unknown> | undefined, key: string) {
+  const value = source?.[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 function ResourceSection({ title, count, icon: Icon, form, children }: { title: string; count: number; icon: LucideIcon; form?: ReactNode; children: ReactNode }) {
@@ -286,7 +385,7 @@ function TextInput({ label, value, onChange, type = "text" }: { label: string; v
 }
 
 function NumberInput({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
-  return <label className="grid gap-1.5 text-xs font-bold text-brand-muted">{label}<input className="h-10 rounded-lg border border-brand-line bg-white px-3 text-sm font-semibold text-brand-navy outline-none focus:border-brand-blue" min={0} onChange={(event) => onChange(Number(event.target.value))} required type="number" value={value} /></label>;
+  return <label className="grid gap-1.5 text-xs font-bold text-brand-muted">{label}<input className="h-10 rounded-lg border border-brand-line bg-white px-3 text-sm font-semibold text-brand-navy outline-none focus:border-brand-blue" min={0} onChange={(event) => onChange(Number(event.target.value))} required step="any" type="number" value={value} /></label>;
 }
 
 function SelectInput({ label, value, options, onChange }: { label: string; value: string; options: string[] | Array<{ label: string; value: string }>; onChange: (value: string) => void }) {

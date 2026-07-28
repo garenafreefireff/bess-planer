@@ -10,11 +10,13 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from openpyxl import load_workbook
+from starlette import status as http_status
 
 from app.core.exceptions import AppError, ConflictError, NotFoundError
 from app.dependencies.storage import StorageClient
 from app.models.dataset import DatasetDocument
 from app.models.file import FileDocument
+from app.modules.analyses.repository import AnalysisRepository
 from app.modules.datasets.enums import DatasetStatus, DatasetType
 from app.modules.datasets.repository import DatasetRepository
 from app.modules.datasets.schemas import DatasetCreateRequest, DatasetResponse
@@ -73,11 +75,13 @@ class DatasetService:
         dataset_repository: DatasetRepository,
         file_repository: FileRepository,
         project_repository: ProjectRepository,
+        analysis_repository: AnalysisRepository,
         storage_client: StorageClient,
     ) -> None:
         self.dataset_repository = dataset_repository
         self.file_repository = file_repository
         self.project_repository = project_repository
+        self.analysis_repository = analysis_repository
         self.storage_client = storage_client
 
     async def create_dataset(
@@ -99,6 +103,8 @@ class DatasetService:
         existing = await self.dataset_repository.get_by_file_for_user(payload.file_id, user_id)
         if existing is not None:
             if existing.project_id == payload.project_id and existing.dataset_type == payload.dataset_type:
+                if payload.activate and existing.status != DatasetStatus.INVALID:
+                    await self._activate_dataset_document(existing, user_id)
                 return self._to_response(existing)
             raise ConflictError("This file is already linked to another dataset.")
 
@@ -121,6 +127,7 @@ class DatasetService:
             file_id=payload.file_id,
             dataset_type=payload.dataset_type,
             status=parsed["status"],
+            version=file_document.version,
             row_count=parsed["row_count"],
             valid_row_count=parsed["valid_row_count"],
             interval_minutes=parsed["interval_minutes"],
@@ -143,6 +150,8 @@ class DatasetService:
         if updated_project is None:
             await self.dataset_repository.delete_by_id_for_user(created.id, user_id)
             raise NotFoundError("Project not found while linking dataset.")
+        if payload.activate and created.status != DatasetStatus.INVALID:
+            await self._activate_dataset_document(created, user_id)
         await self.file_repository.update_by_id_for_user(
             payload.file_id,
             user_id,
@@ -155,6 +164,8 @@ class DatasetService:
                 "metadata": {
                     "dataset_id": created.id,
                     "dataset_type": created.dataset_type,
+                    "dataset_version": created.version,
+                    "file_version": file_document.version,
                     "row_count": created.row_count,
                     "valid_row_count": created.valid_row_count,
                     "interval_minutes": created.interval_minutes,
@@ -171,13 +182,22 @@ class DatasetService:
         page_size: int,
         skip: int,
         project_id: str | None = None,
+        dataset_type: DatasetType | None = None,
+        status: DatasetStatus | None = None,
     ) -> PageResponse[DatasetResponse]:
-        total = await self.dataset_repository.count_by_user(user_id, project_id)
+        total = await self.dataset_repository.count_by_user(
+            user_id,
+            project_id=project_id,
+            dataset_type=dataset_type,
+            status=status,
+        )
         datasets = await self.dataset_repository.list_by_user(
             user_id,
             skip=skip,
             limit=page_size,
             project_id=project_id,
+            dataset_type=dataset_type,
+            status=status,
         )
         return PageResponse[DatasetResponse](
             items=[self._to_response(item) for item in datasets],
@@ -190,9 +210,41 @@ class DatasetService:
             raise NotFoundError("Dataset not found.")
         return self._to_response(dataset)
 
-    async def delete_dataset(self, dataset_id: str, user_id: str) -> None:
-        dataset = await self.dataset_repository.delete_by_id_for_user(dataset_id, user_id)
+    async def activate_dataset(self, dataset_id: str, user_id: str) -> DatasetResponse:
+        dataset = await self.dataset_repository.get_by_id_for_user(dataset_id, user_id)
         if dataset is None:
+            raise NotFoundError("Dataset not found.")
+        if dataset.status == DatasetStatus.INVALID:
+            raise AppError(
+                "Invalid datasets cannot be activated.",
+                code="invalid_dataset_cannot_be_activated",
+            )
+        await self._activate_dataset_document(dataset, user_id)
+        return self._to_response(dataset)
+
+    async def delete_dataset(self, dataset_id: str, user_id: str) -> None:
+        dataset = await self.dataset_repository.get_by_id_for_user(dataset_id, user_id)
+        if dataset is None:
+            raise NotFoundError("Dataset not found.")
+        project = await self.project_repository.get_by_id_for_user(dataset.project_id, user_id)
+        active_dataset_ids = {
+            project.active_load_dataset_id,
+            project.active_pv_dataset_id,
+        } if project else set()
+        if dataset_id in active_dataset_ids:
+            raise AppError(
+                "Active datasets cannot be deleted. Activate another dataset first.",
+                code="active_dataset_cannot_be_deleted",
+                status_code=http_status.HTTP_409_CONFLICT,
+            )
+        if await self.analysis_repository.count_references_dataset_for_user(dataset_id, user_id):
+            raise AppError(
+                "Dataset is referenced by an analysis run and cannot be deleted.",
+                code="dataset_used_by_analysis",
+                status_code=http_status.HTTP_409_CONFLICT,
+            )
+        deleted = await self.dataset_repository.delete_by_id_for_user(dataset_id, user_id)
+        if deleted is None:
             raise NotFoundError("Dataset not found.")
         await self.project_repository.remove_dataset_id_for_user(
             dataset.project_id,
@@ -204,6 +256,27 @@ class DatasetService:
             user_id,
             {"status": FileStatus.UPLOADED, "metadata": {}},
         )
+
+    async def _activate_dataset_document(
+        self,
+        dataset: DatasetDocument,
+        user_id: str,
+    ) -> None:
+        if dataset.id is None:
+            raise AppError("Dataset is missing an identifier.", code="dataset_id_missing")
+        field_name = (
+            "active_load_dataset_id"
+            if dataset.dataset_type == DatasetType.LOAD_PROFILE
+            else "active_pv_dataset_id"
+        )
+        updated_project = await self.project_repository.set_active_dataset_for_user(
+            dataset.project_id,
+            user_id,
+            field_name=field_name,
+            dataset_id=dataset.id,
+        )
+        if updated_project is None:
+            raise NotFoundError("Project not found while activating dataset.")
 
     @staticmethod
     def _to_response(dataset: DatasetDocument) -> DatasetResponse:

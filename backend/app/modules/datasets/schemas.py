@@ -10,6 +10,7 @@ class DatasetCreateRequest(BaseModel):
     project_id: ObjectIdStr
     file_id: ObjectIdStr
     dataset_type: DatasetType
+    activate: bool = True
 
 
 class DatasetResponse(BaseModel):
@@ -19,6 +20,7 @@ class DatasetResponse(BaseModel):
     file_id: str
     dataset_type: DatasetType
     status: DatasetStatus
+    version: int = 1
     row_count: int
     valid_row_count: int
     interval_minutes: float | None = None

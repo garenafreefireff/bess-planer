@@ -19,4 +19,6 @@ class FileDocument(BaseDocument):
     sha256: str
     kind: FileKind
     status: FileStatus = FileStatus.UPLOADED
+    version: int = 1
+    supersedes_file_id: str | None = None
     metadata: dict = Field(default_factory=dict)

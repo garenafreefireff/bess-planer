@@ -1,4 +1,5 @@
-﻿import { ArrowRight } from "lucide-react";
+﻿import Image from "next/image";
+import { ArrowRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { workflowSteps } from "../data/landing-content";
 
@@ -85,8 +86,14 @@ function PreviewCard({ alt, src, title, value }: { alt: string; src: string; tit
         <span className="block text-[9px] font-bold text-brand-muted">{title}</span>
         {value ? <strong className="mt-0.5 block truncate text-[10px] font-bold text-brand-navy">{value}</strong> : null}
       </figcaption>
-      <div className="h-[105px] w-full overflow-hidden bg-slate-50">
-        <img className="block h-full w-full object-cover object-center" src={src} alt={alt} loading="lazy" />
+      <div className="relative h-[105px] w-full overflow-hidden bg-slate-50">
+        <Image
+          fill
+          className="object-cover object-center"
+          src={src}
+          alt={alt}
+          sizes="160px"
+        />
       </div>
     </figure>
   );

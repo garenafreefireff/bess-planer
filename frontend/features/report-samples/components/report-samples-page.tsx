@@ -1,4 +1,5 @@
-﻿import {
+﻿import Image from "next/image";
+import {
   ArrowDown,
   BarChart3,
   BatteryCharging,
@@ -98,7 +99,13 @@ export function ReportSamplesPage() {
         <section className="site-container mt-2.5">
           <div className="grid grid-cols-[220px_1fr_auto] items-center gap-5 overflow-hidden rounded-lg border border-brand-line bg-gradient-to-r from-blue-50/80 via-white to-green-50/50 px-4 py-2.5 max-lg:grid-cols-1">
             <div className="relative h-[58px] overflow-hidden rounded-md">
-              <img className="h-full w-full object-cover object-[center_58%]" src="/bess-hero.png" alt="Nhà máy và hệ thống lưu trữ năng lượng BESS" loading="lazy" />
+              <Image
+                fill
+                className="object-cover object-[center_58%]"
+                src="/bess-hero.png"
+                alt="Nhà máy và hệ thống lưu trữ năng lượng BESS"
+                sizes="220px"
+              />
               <div className="absolute inset-0 bg-gradient-to-r from-white/15 via-transparent to-white/10" />
             </div>
             <div>

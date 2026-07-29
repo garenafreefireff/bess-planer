@@ -42,10 +42,11 @@ jobs:
       - name: Check Python syntax
         run: python -m compileall -q app tests
 
-      - name: Report Ruff findings (non-blocking)
+      - name: Report Ruff findings
         run: ruff check . --exit-zero --output-format=github
 
-      - name: Run backend tests        run: pytest -q
+      - name: Run backend tests
+        run: pytest -q
 
   frontend-ci:
     name: Frontend CI
@@ -56,9 +57,7 @@ jobs:
         working-directory: frontend
 
     env:
-      NEXT_PUBLIC_API_BASE_URL: >-
-        ${{ vars.NEXT_PUBLIC_API_BASE_URL ||
-        'http://localhost:8000/api/v1' }}
+      NEXT_PUBLIC_API_BASE_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api/v1' }}
 
     steps:
       - name: Checkout source
@@ -101,8 +100,7 @@ jobs:
         id: image
         shell: bash
         run: |
-          echo "name=ghcr.io/${GITHUB_REPOSITORY,,}-backend" \
-            >> "$GITHUB_OUTPUT"
+          echo "name=ghcr.io/${GITHUB_REPOSITORY,,}-backend" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -157,8 +155,7 @@ jobs:
         id: image
         shell: bash
         run: |
-          echo "name=ghcr.io/${GITHUB_REPOSITORY,,}-frontend" \
-            >> "$GITHUB_OUTPUT"
+          echo "name=ghcr.io/${GITHUB_REPOSITORY,,}-frontend" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -226,13 +223,8 @@ jobs:
           SSH_KNOWN_HOSTS: ${{ secrets.PROD_KNOWN_HOSTS }}
         run: |
           install -m 700 -d "$HOME/.ssh"
-
-          printf '%s\n' "$SSH_PRIVATE_KEY" \
-            > "$HOME/.ssh/id_ed25519"
-
-          printf '%s\n' "$SSH_KNOWN_HOSTS" \
-            > "$HOME/.ssh/known_hosts"
-
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
           chmod 600 "$HOME/.ssh/id_ed25519"
           chmod 600 "$HOME/.ssh/known_hosts"
 
@@ -243,15 +235,7 @@ jobs:
           SSH_PORT: ${{ secrets.PROD_SSH_PORT }}
           SSH_USER: ${{ secrets.PROD_SSH_USER }}
         run: |
-          scp \
-            -i "$HOME/.ssh/id_ed25519" \
-            -o BatchMode=yes \
-            -o StrictHostKeyChecking=yes \
-            -P "$SSH_PORT" \
-            deploy/docker-compose.prod.yml \
-            deploy/deploy.sh \
-            deploy/rollback.sh \
-            "$SSH_USER@$SSH_HOST:/opt/bess-planner/"
+          scp             -i "$HOME/.ssh/id_ed25519"             -o BatchMode=yes             -o StrictHostKeyChecking=yes             -P "$SSH_PORT"             deploy/docker-compose.prod.yml             deploy/deploy.sh             deploy/rollback.sh             "$SSH_USER@$SSH_HOST:/opt/bess-planner/"
 
       - name: Deploy commit
         shell: bash
@@ -260,13 +244,4 @@ jobs:
           SSH_PORT: ${{ secrets.PROD_SSH_PORT }}
           SSH_USER: ${{ secrets.PROD_SSH_USER }}
         run: |
-          ssh \
-            -i "$HOME/.ssh/id_ed25519" \
-            -o BatchMode=yes \
-            -o StrictHostKeyChecking=yes \
-            -p "$SSH_PORT" \
-            "$SSH_USER@$SSH_HOST" \
-            "chmod +x /opt/bess-planner/deploy.sh \
-              /opt/bess-planner/rollback.sh \
-              && /opt/bess-planner/deploy.sh \
-              'sha-${GITHUB_SHA}'"
+          ssh             -i "$HOME/.ssh/id_ed25519"             -o BatchMode=yes             -o StrictHostKeyChecking=yes             -p "$SSH_PORT"             "$SSH_USER@$SSH_HOST"             "chmod +x /opt/bess-planner/deploy.sh /opt/bess-planner/rollback.sh && /opt/bess-planner/deploy.sh 'sha-${GITHUB_SHA}'"

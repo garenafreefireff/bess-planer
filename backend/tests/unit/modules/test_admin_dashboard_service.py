@@ -114,7 +114,7 @@ class FakeAdminDashboardRepository:
         timezone: str,
         granularity: str,
     ) -> list[dict[str, Any]]:
-        zone = test_timezone(timezone)
+        zone = resolve_timezone(timezone)
         rows = self.users if collection_name == "users" else self.projects
         buckets: dict[datetime, int] = {}
         for row in rows:
@@ -178,7 +178,7 @@ def count_between(rows: list[dict[str, Any]], start_utc: datetime, end_utc: date
     return len([row for row in rows if in_range(row.get("created_at"), start_utc, end_utc)])
 
 
-def test_timezone(timezone: str):
+def resolve_timezone(timezone: str):
     try:
         return ZoneInfo(timezone)
     except ZoneInfoNotFoundError:

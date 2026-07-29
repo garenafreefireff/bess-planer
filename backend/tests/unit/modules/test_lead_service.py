@@ -3,15 +3,20 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
+from app.core.config import Settings
 from app.models.lead import LeadDocument
 from app.modules.leads.enums import LeadSource, LeadStatus
 from app.modules.leads.schemas import LeadCaptureResponse, QuickSizingLeadCreateRequest
 from app.modules.leads.service import LeadService
+from app.modules.reports.schemas import NotificationOutboxCreate
 
 
 class FakeLeadRepository:
     def __init__(self) -> None:
         self.last_upsert: dict[str, Any] | None = None
+
+    async def get_by_email(self, email: str) -> LeadDocument | None:
+        return None
 
     async def upsert_by_email(self, **kwargs: Any) -> LeadDocument:
         self.last_upsert = kwargs
@@ -31,10 +36,26 @@ class FakeLeadRepository:
         )
 
 
+class FakeReportService:
+    def __init__(self) -> None:
+        self.notifications: list[NotificationOutboxCreate] = []
+
+    async def enqueue_notification(self, payload: NotificationOutboxCreate) -> None:
+        self.notifications.append(payload)
+
+
+def build_lead_service(repository: FakeLeadRepository) -> LeadService:
+    return LeadService(
+        repository,  # type: ignore[arg-type]
+        FakeReportService(),  # type: ignore[arg-type]
+        Settings(notification_outbox_enabled=False),
+    )
+
+
 @pytest.mark.asyncio
 async def test_quick_sizing_capture_unlocks_report_and_saves_snapshots() -> None:
     repository = FakeLeadRepository()
-    service = LeadService(repository)  # type: ignore[arg-type]
+    service = build_lead_service(repository)
     payload = QuickSizingLeadCreateRequest(
         full_name="Nguyen Van A",
         email="A@Example.com",
@@ -62,7 +83,7 @@ async def test_quick_sizing_capture_unlocks_report_and_saves_snapshots() -> None
 @pytest.mark.asyncio
 async def test_registration_capture_uses_same_email_pipeline() -> None:
     repository = FakeLeadRepository()
-    service = LeadService(repository)  # type: ignore[arg-type]
+    service = build_lead_service(repository)
 
     await service.capture_registration(
         user_id="64b000000000000000000002",
